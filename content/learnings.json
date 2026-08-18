@@ -1,0 +1,20 @@
+[
+  {
+    "title": "Placeholder — something you learned recently",
+    "href": null,
+    "date": "2026-08-17",
+    "note": "An optional second line, if the title needs context."
+  },
+  {
+    "title": "Another thing, with a link attached",
+    "href": "https://example.com",
+    "date": "2026-08-14",
+    "note": null
+  },
+  {
+    "title": "An older one, to show the ordering",
+    "href": null,
+    "date": "2026-08-02",
+    "note": null
+  }
+]

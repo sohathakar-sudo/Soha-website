@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Placeholder project one",
+    "description": "One line about what it is and why you made it.",
+    "href": "#",
+    "thumbnail": null
+  },
+  {
+    "name": "Placeholder project two",
+    "description": "Swap these out for real things. Three to five is plenty.",
+    "href": "#",
+    "thumbnail": null
+  },
+  {
+    "name": "Placeholder project three",
+    "description": "A link is optional — leave href as \"#\" if there is nowhere to go yet.",
+    "href": "#",
+    "thumbnail": null
+  }
+]
