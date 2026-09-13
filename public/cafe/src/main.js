@@ -1,10 +1,11 @@
-import { VIEW, CATS, PATHS } from './config.js';
+import { VIEW, PATHS } from './config.js';
 import { createLoop } from './loop.js';
 import { attachInput, readInput, hasMovement } from './input.js';
 import { createPlayer, applyMovement, applyInteraction, isSeated } from './player.js';
 import { loadCatSheet, loadImage, createRenderState, advanceAnimation } from './sprites.js';
 import { drawBackground, drawForeground, drawPlayers } from './render.js';
 import { loadRoom } from './room.js';
+import { showTitle, drawHud } from './ui.js';
 import * as net from './net.js';
 
 const canvas = document.getElementById('game');
@@ -116,6 +117,16 @@ function update(dt) {
   }
 }
 
+// What Enter would do from where the player is standing.
+function promptFor(player) {
+  if (isSeated(player)) {
+    return player.state === 'sitting' ? 'ENTER  work' : 'ENTER  stop working';
+  }
+  const zone = room ? room.zoneAt(player.x, player.y) : null;
+  if (!zone) return '';
+  return zone.type === 'counter' ? 'ENTER  coffee' : 'ENTER  sit';
+}
+
 function render() {
   ctx.imageSmoothingEnabled = false;
   drawBackground(ctx, art.bg);
@@ -123,22 +134,7 @@ function render() {
   drawForeground(ctx, art.fg);
 
   const me = players.get('local');
-  ctx.fillStyle = '#111';
-  ctx.font = '8px monospace';
-  ctx.textBaseline = 'top';
-  ctx.fillText(
-    `${scale}x  fps ${loop.stats.fps}  ${Math.round(me.x)},${Math.round(me.y)}  ${me.dir} ${me.state}`,
-    4, 4,
-  );
-
-  // A real HUD arrives with the title screen in phase 6.
-  const zone = room ? room.zoneAt(me.x, me.y) : null;
-  if (zone && !isSeated(me)) {
-    ctx.fillText(zone.type === 'counter' ? 'Enter: coffee' : 'Enter: sit', 4, 14);
-  } else if (isSeated(me)) {
-    ctx.fillText(me.state === 'sitting' ? 'Enter: work' : 'Enter: stop working', 4, 14);
-  }
-  ctx.fillText(`coffees ${me.coffees}`, VIEW.width - 60, 4);
+  drawHud(ctx, me, promptFor(me));
 }
 
 // Multiplayer hook: snapshots would be applied to room state here.
@@ -161,10 +157,13 @@ async function boot() {
   art.bg = bg;
   art.fg = fg;
 
+  // The title screen blocks here until the player picks a name and a cat.
+  const choice = await showTitle();
+
   const me = createPlayer({
     id: 'local',
-    name: 'guest',
-    catId: CATS[3],
+    name: choice.name,
+    catId: choice.catId,
     x: room.spawn.x,
     y: room.spawn.y,
   });

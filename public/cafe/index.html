@@ -21,7 +21,9 @@
     align-items: center;
     justify-content: center;
   }
-  canvas {
+  /* Scoped to the game canvas: the title screen's cat previews are drawn on
+     canvases of their own, and a black fill would hide every one of them. */
+  #game {
     display: block;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
@@ -63,7 +65,7 @@
     border: 1px solid #3a3a45;
     border-radius: 4px;
   }
-  #title-cats { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 440px; }
+  #title-cats { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 100%; }
   .cat-choice {
     padding: 4px;
     background: #8f8f95;
