@@ -4,16 +4,19 @@ Top-down 2D café prototype. Vanilla JS, ES modules, Canvas 2D, no build step.
 
 ## Run locally
 
-Serve the project root with any static file server and open `cafe/`:
+The game is plain static files, but ES modules cannot load over `file://`, so it
+needs a server. From the repository root:
 
 ```
-npx serve .        # or: python3 -m http.server
+npm run cafe
 ```
 
-ES modules need HTTP — opening `index.html` from the filesystem will not work.
+Leave it running, then open http://localhost:8000/cafe/. That server has no
+dependencies — it does not need `npm install` and it does not involve Next.
+If port 8000 is taken, use `PORT=8001 npm run cafe`.
 
-In this repository the game lives at `public/cafe/`, so `npm run dev` serves it at
-http://localhost:3000/cafe/.
+The site's own dev server works too: `npm run dev`, then
+http://localhost:3000/cafe.
 
 ## Placeholder art
 

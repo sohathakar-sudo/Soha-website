@@ -13,9 +13,15 @@ canvas.height = VIEW.height;
 // every pixel is upscaled by a whole number and nothing ever blurs.
 let scale = 1;
 
+// Scale against the element the canvas sits in, not the window, so the game also
+// behaves when it is embedded in a page that has other content around it.
+const stage = canvas.parentElement;
+
 function resize() {
-  const fitX = Math.floor(window.innerWidth / VIEW.width);
-  const fitY = Math.floor(window.innerHeight / VIEW.height);
+  const availW = stage.clientWidth || window.innerWidth;
+  const availH = stage.clientHeight || window.innerHeight;
+  const fitX = Math.floor(availW / VIEW.width);
+  const fitY = Math.floor(availH / VIEW.height);
   scale = Math.max(1, Math.min(fitX, fitY, VIEW.maxScale));
   canvas.style.width = `${VIEW.width * scale}px`;
   canvas.style.height = `${VIEW.height * scale}px`;
