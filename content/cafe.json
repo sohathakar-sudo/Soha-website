@@ -1,0 +1,31 @@
+{
+  "menu": [
+    {
+      "name": "Single shot",
+      "description": "One clean block. Long enough to finish a thought, short enough to start now.",
+      "minutes": 25
+    },
+    {
+      "name": "Long black",
+      "description": "For work that takes a while to warm up — writing, reading, anything with a shape.",
+      "minutes": 50
+    },
+    {
+      "name": "Pot of tea",
+      "description": "The slow one. Settle in, no clock-watching.",
+      "minutes": 90
+    },
+    {
+      "name": "Just a glass of water",
+      "description": "A small, honest attempt. Five minutes is still five minutes.",
+      "minutes": 5
+    }
+  ],
+  "houseRules": [
+    "One thing at a time.",
+    "Phone face down, on the other side of the table.",
+    "When the timer ends, actually get up.",
+    "Coming back after a bad session counts as a session."
+  ],
+  "nowPlaying": "Rain on a window, a milk steamer somewhere behind you, and the low hum of other people working."
+}

@@ -14,6 +14,9 @@
   /* Type */
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", serif;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Garamond, for the cafe: its door on the rail and its headings. */
+  --font-garamond: "EB Garamond", "Adobe Garamond Pro", "Garamond",
+    "Apple Garamond", "Cormorant Garamond", Georgia, serif;
 
   /* Ink — text on the light pane */
   --color-ink: #1c1917;
@@ -34,6 +37,10 @@
 
   /* Layout */
   --rail-width: 17rem;
+
+  /* Cafe — warmer paper, dimmer room */
+  --cafe-pane-bg: rgba(243, 234, 220, 0.92);
+  --cafe-rule: rgba(28, 25, 23, 0.14);
 
   /*
     Background. Swap --bg-image for url('/images/background.jpg') once a
@@ -140,4 +147,15 @@ body {
   padding-left: 1em;
   color: var(--color-ink-soft);
   font-style: italic;
+}
+
+/* The cafe reuses the pane, on slightly warmer paper. */
+.cafe main > div {
+  background: var(--cafe-pane-bg);
+}
+
+/* Dotted leader between a menu item and its time, like a printed menu. */
+.menu-leader {
+  border-bottom: 1px dotted var(--color-ink-faint);
+  transform: translateY(-0.3em);
 }
