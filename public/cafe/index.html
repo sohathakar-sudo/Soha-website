@@ -92,6 +92,30 @@
   #title-play:hover { background: #ddA061; }
   :focus-visible { outline: 2px solid #c98a4b; outline-offset: 3px; }
 
+  /* --- debug editor ----------------------------------------------------- */
+  #debug-bar {
+    position: fixed;
+    right: 12px;
+    bottom: 12px;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: #9a9aa4;
+  }
+  #debug-bar[hidden] { display: none; }
+  #debug-copy {
+    font: inherit;
+    padding: 6px 12px;
+    color: #e8e8ec;
+    background: #2f2f37;
+    border: 1px solid #45454f;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  #debug-copy:hover { background: #3b3b45; }
+
   #mobile-notice {
     display: none;
     position: fixed;
@@ -108,7 +132,31 @@
     box-sizing: border-box;
   }
   @media (max-width: 699px) {
-    #mobile-notice { display: flex; }
+    /* --- debug editor ----------------------------------------------------- */
+  #debug-bar {
+    position: fixed;
+    right: 12px;
+    bottom: 12px;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: #9a9aa4;
+  }
+  #debug-bar[hidden] { display: none; }
+  #debug-copy {
+    font: inherit;
+    padding: 6px 12px;
+    color: #e8e8ec;
+    background: #2f2f37;
+    border: 1px solid #45454f;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  #debug-copy:hover { background: #3b3b45; }
+
+  #mobile-notice { display: flex; }
   }
 </style>
 </head>
@@ -127,6 +175,11 @@
       <div id="title-cats" role="group" aria-labelledby="cats-label"></div>
     </div>
     <button id="title-play" type="button">Play</button>
+  </div>
+
+  <div id="debug-bar" hidden>
+    <button id="debug-copy" type="button">Copy JSON</button>
+    <span id="debug-note"></span>
   </div>
 
   <div id="mobile-notice"><p>Cat Café is desktop only for now.<br />Come back on a bigger screen.</p></div>

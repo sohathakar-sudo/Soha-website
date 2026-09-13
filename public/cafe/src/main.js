@@ -1,11 +1,12 @@
 import { VIEW, PATHS } from './config.js';
 import { createLoop } from './loop.js';
-import { attachInput, readInput, hasMovement } from './input.js';
+import { attachInput, readInput, hasMovement, consumePress } from './input.js';
 import { createPlayer, applyMovement, applyInteraction, isSeated } from './player.js';
 import { loadCatSheet, loadImage, createRenderState, advanceAnimation } from './sprites.js';
 import { drawBackground, drawForeground, drawPlayers } from './render.js';
 import { loadRoom } from './room.js';
 import { showTitle, drawHud } from './ui.js';
+import { createDebugEditor } from './debug.js';
 import * as net from './net.js';
 
 const canvas = document.getElementById('game');
@@ -94,6 +95,8 @@ let tick = 0;
 function update(dt) {
   tick++;
 
+  if (consumePress('Backquote') && editor) editor.toggle();
+
   for (const player of players.values()) {
     const input = inputFor(player);
 
@@ -134,7 +137,13 @@ function render() {
   drawForeground(ctx, art.fg);
 
   const me = players.get('local');
-  drawHud(ctx, me, promptFor(me));
+  // The editor replaces the HUD rather than crowding it: both want the same
+  // corners.
+  if (editor && editor.active) {
+    editor.draw(ctx);
+  } else {
+    drawHud(ctx, me, promptFor(me));
+  }
 }
 
 // Multiplayer hook: snapshots would be applied to room state here.
@@ -144,6 +153,7 @@ const loop = createLoop({ update, render });
 
 // --- Boot ------------------------------------------------------------------
 let room = null;
+let editor = null;
 const art = { bg: null, fg: null };
 
 async function boot() {
@@ -173,12 +183,13 @@ async function boot() {
   addPlayer(me);
 
   attachInput();
+  editor = createDebugEditor({ canvas, room, loop, players });
   net.connect();
   loop.start();
 
   // A handle for the console and for the debug editor in phase 7. Read-only in
   // spirit: the game never reads anything back off it.
-  window.cafe = { players, renderStates, room, art, loop };
+  window.cafe = { players, renderStates, room, art, loop, editor };
 }
 
 boot().catch((err) => {
