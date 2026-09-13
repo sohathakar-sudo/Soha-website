@@ -16,9 +16,9 @@
     { "type": "table", "x": 156, "y": 86, "w": 48, "h": 48,
       "seat": { "x": 180, "y": 96 }, "facing": "down" },
     { "type": "table", "x": 56, "y": 176, "w": 48, "h": 48,
-      "seat": { "x": 80, "y": 214 }, "facing": "up" },
+      "seat": { "x": 80, "y": 224 }, "facing": "up" },
     { "type": "table", "x": 156, "y": 176, "w": 48, "h": 48,
-      "seat": { "x": 180, "y": 214 }, "facing": "up" },
+      "seat": { "x": 180, "y": 224 }, "facing": "up" },
     { "type": "counter", "x": 300, "y": 60, "w": 120, "h": 44 }
   ],
   "spawn": { "x": 240, "y": 220 }

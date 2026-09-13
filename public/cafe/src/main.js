@@ -1,7 +1,7 @@
 import { VIEW, CATS, PATHS } from './config.js';
 import { createLoop } from './loop.js';
 import { attachInput, readInput, hasMovement } from './input.js';
-import { createPlayer, applyMovement } from './player.js';
+import { createPlayer, applyMovement, applyInteraction, isSeated } from './player.js';
 import { loadCatSheet, loadImage, createRenderState, advanceAnimation } from './sprites.js';
 import { drawBackground, drawForeground, drawPlayers } from './render.js';
 import { loadRoom } from './room.js';
@@ -57,6 +57,30 @@ function addPlayer(player) {
 
 const ZERO_INPUT = { left: false, right: false, up: false, down: false, interact: false };
 
+// --- Persistence -----------------------------------------------------------
+// Only the local player's own coffee count. Private browsing can make storage
+// throw, and a broken café is worse than a forgotten coffee count.
+const COFFEE_KEY = 'cafe:coffees';
+let savedCoffees = -1;
+
+function readCoffees() {
+  try {
+    return Number(localStorage.getItem(COFFEE_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function rememberCoffees(count) {
+  if (count === savedCoffees) return;
+  savedCoffees = count;
+  try {
+    localStorage.setItem(COFFEE_KEY, String(count));
+  } catch {
+    /* storage unavailable; the count still works for this session */
+  }
+}
+
 // The only place the local player is special: it reads the keyboard. Remote
 // players will get their input from snapshots through the same path.
 function inputFor(player) {
@@ -74,13 +98,19 @@ function update(dt) {
 
     if (player.id === 'local') net.sendInput(input, tick);
 
-    const moved = applyMovement(player, input, dt, room);
-    player.x = moved.x;
-    player.y = moved.y;
-    player.dir = moved.dir;
+    // Interactions first: they can stand a seated player up in time for the
+    // same tick's movement.
+    Object.assign(player, applyInteraction(player, input, room));
 
-    // The rest of the state machine — sitting, working, coffee — lands in phase 5.
-    player.state = hasMovement(input) ? 'walking' : 'idle';
+    if (!isSeated(player)) {
+      const moved = applyMovement(player, input, dt, room);
+      player.x = moved.x;
+      player.y = moved.y;
+      player.dir = moved.dir;
+      player.state = hasMovement(input) ? 'walking' : 'idle';
+    }
+
+    if (player.id === 'local') rememberCoffees(player.coffees);
 
     advanceAnimation(renderStates.get(player.id), player.state, player.dir, dt);
   }
@@ -100,6 +130,15 @@ function render() {
     `${scale}x  fps ${loop.stats.fps}  ${Math.round(me.x)},${Math.round(me.y)}  ${me.dir} ${me.state}`,
     4, 4,
   );
+
+  // A real HUD arrives with the title screen in phase 6.
+  const zone = room ? room.zoneAt(me.x, me.y) : null;
+  if (zone && !isSeated(me)) {
+    ctx.fillText(zone.type === 'counter' ? 'Enter: coffee' : 'Enter: sit', 4, 14);
+  } else if (isSeated(me)) {
+    ctx.fillText(me.state === 'sitting' ? 'Enter: work' : 'Enter: stop working', 4, 14);
+  }
+  ctx.fillText(`coffees ${me.coffees}`, VIEW.width - 60, 4);
 }
 
 // Multiplayer hook: snapshots would be applied to room state here.
@@ -122,13 +161,17 @@ async function boot() {
   art.bg = bg;
   art.fg = fg;
 
-  addPlayer(createPlayer({
+  const me = createPlayer({
     id: 'local',
     name: 'guest',
     catId: CATS[3],
     x: room.spawn.x,
     y: room.spawn.y,
-  }));
+  });
+  me.coffees = readCoffees();
+  me.holdingCoffee = me.coffees > 0;
+  savedCoffees = me.coffees;
+  addPlayer(me);
 
   attachInput();
   net.connect();
