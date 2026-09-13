@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cat Café — placeholder art generator</title>
+<style>
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #16161a;
+    color: #e8e8ec;
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; color: #9a9aa4; }
+  section { margin-bottom: 28px; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .08em; color: #9a9aa4; margin: 0 0 10px; }
+  canvas { image-rendering: pixelated; background: #26262c; vertical-align: top; }
+  .tiles { display: flex; flex-wrap: wrap; gap: 14px; }
+  .tile { text-align: center; }
+  .tile div { margin-top: 4px; font-size: 11px; color: #9a9aa4; }
+  button {
+    font: inherit;
+    background: #2f2f37;
+    color: #e8e8ec;
+    border: 1px solid #45454f;
+    border-radius: 5px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button:hover { background: #3b3b45; }
+  button.primary { background: #4a6f4a; border-color: #5d8a5d; }
+  textarea {
+    width: 100%;
+    max-width: 720px;
+    height: 130px;
+    font: 12px/1.4 monospace;
+    background: #101014;
+    color: #cfcfd6;
+    border: 1px solid #45454f;
+    border-radius: 5px;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  code { background: #26262c; padding: 1px 4px; border-radius: 3px; }
+  #status { color: #9a9aa4; }
+</style>
+</head>
+<body>
+
+<h1>Cat Café — placeholder art generator</h1>
+<p class="sub">
+  Draws every asset at its exact shipping size. Download them into <code>assets/</code>.
+  No dependencies — this page can be opened straight from disk.
+</p>
+
+<section>
+  <h2>Room source</h2>
+  <div class="row">
+    <button id="reload">Reload from data/room.json</button>
+    <button id="redraw" class="primary">Redraw from the text below</button>
+    <span id="status"></span>
+  </div>
+  <textarea id="roomjson" spellcheck="false"></textarea>
+</section>
+
+<section>
+  <h2>Room — 480 × 270</h2>
+  <div class="row"><button id="dl-room">Download both room PNGs</button></div>
+  <div class="tiles">
+    <div class="tile"><canvas id="bg" width="480" height="270"></canvas><div>room-bg.png</div></div>
+    <div class="tile"><canvas id="fg" width="480" height="270"></canvas><div>room-fg.png (transparent)</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>Cats — 128 × 192 each (4 × 6 frames of 32 × 32)</h2>
+  <div class="row"><button id="dl-cats">Download all 8 cat sheets</button></div>
+  <div class="tiles" id="cats"></div>
+</section>
+
+<section>
+  <h2>Everything</h2>
+  <div class="row">
+    <button id="dl-all" class="primary">Download all 10 files</button>
+    <span class="sub">Your browser may ask to allow multiple downloads.</span>
+  </div>
+</section>
+
+<script>
+// ---------------------------------------------------------------------------
+// Palette. The placeholders are deliberately abstract: black dots moving among
+// hollow circles. No cat anatomy, no hues.
+// ---------------------------------------------------------------------------
+const FLOOR  = '#8f8f95';
+const WALL   = '#6e6e75';
+const STROKE = '#55555c';
+const DOT    = '#000000';
+
+const SHEET  = { frame: 32, cols: 4, rows: 6 };
+const CAT_COUNT = 8;
+const CAT_MIN_DIAMETER = 17; // variants step 17px .. 24px, nothing else changes
+
+// Walk cycle: frame 0 is neutral so it can double as the idle pose. The bob is
+// a full 2px so the animation is obvious, and the contact frame squashes.
+const WALK_FRAMES = [
+  { bob: 0,  sx: 1.00, sy: 1.00 },
+  { bob: -2, sx: 0.96, sy: 1.04 },
+  { bob: 0,  sx: 1.10, sy: 0.92 },
+  { bob: -2, sx: 0.96, sy: 1.04 },
+];
+
+const ROW = { down: 0, up: 1, left: 2, right: 3, sit: 4, work: 5 };
+const SIT_ORDER = ['down', 'up', 'left', 'right']; // column order of row 4
+
+const DEFAULT_ROOM = {
+  solids: [],
+  zones: [
+    { type: 'table', x: 56, y: 86, w: 48, h: 48 },
+    { type: 'table', x: 156, y: 86, w: 48, h: 48 },
+    { type: 'table', x: 56, y: 176, w: 48, h: 48 },
+    { type: 'table', x: 156, y: 176, w: 48, h: 48 },
+    { type: 'counter', x: 300, y: 60, w: 120, h: 44 },
+  ],
+  spawn: { x: 240, y: 220 },
+};
+
+const WALL_HEIGHT = 40;
+const COUNTER_DIAMETER = 24;
+
+// ---------------------------------------------------------------------------
+// Cats
+// ---------------------------------------------------------------------------
+
+// One filled dot, optionally with a notch bitten out of the facing edge.
+function drawDot(ctx, cx, cy, rx, ry, facing) {
+  ctx.fillStyle = DOT;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (!facing) return;
+
+  // The notch is the only cue for direction, so it is required: without it
+  // there is no way to see whether the facing logic is right.
+  const edge = {
+    down:  [cx, cy + ry],
+    up:    [cx, cy - ry],
+    left:  [cx - rx, cy],
+    right: [cx + rx, cy],
+  }[facing];
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.beginPath();
+  ctx.arc(edge[0], edge[1], 1.5, 0, Math.PI * 2); // 3px wide bite
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawCatSheet(index) {
+  const f = SHEET.frame;
+  const canvas = document.createElement('canvas');
+  canvas.width = f * SHEET.cols;
+  canvas.height = f * SHEET.rows;
+  const ctx = canvas.getContext('2d');
+
+  const d = CAT_MIN_DIAMETER + index;      // 17 .. 24
+  const r = d / 2;
+  const sitR = Math.round(d * 0.8) / 2;    // sit/work pose is a touch smaller
+
+  // The dot sits in the lower part of the frame, feet near the bottom edge.
+  const baseY = (radius) => f - 4 - radius;
+
+  for (const dir of ['down', 'up', 'left', 'right']) {
+    const row = ROW[dir];
+    WALK_FRAMES.forEach((pose, col) => {
+      const cx = col * f + f / 2;
+      const cy = row * f + baseY(r) + pose.bob;
+      drawDot(ctx, cx, cy, r * pose.sx, r * pose.sy, dir);
+    });
+  }
+
+  // Row 4: one still sit frame per facing, no bob.
+  SIT_ORDER.forEach((dir, col) => {
+    const cx = col * f + f / 2;
+    const cy = ROW.sit * f + baseY(sitR);
+    drawDot(ctx, cx, cy, sitR, sitR, dir);
+  });
+
+  // Row 5: sitting at work, facing down, with a small unfilled square in front.
+  // The dot sits 4px higher than the sit pose so the square in front of it still
+  // fits inside the frame.
+  for (let col = 0; col < 2; col++) {
+    const cx = col * f + f / 2;
+    const cy = ROW.work * f + baseY(sitR) - 4;
+    drawDot(ctx, cx, cy, sitR, sitR, 'down');
+
+    const size = 6;
+    const top = cy + sitR + 1 + (col === 1 ? 1 : 0); // 1px shift makes the loop read
+    ctx.strokeStyle = DOT;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(Math.round(cx - size / 2) + 0.5, Math.round(top) + 0.5, size, size);
+  }
+
+  return canvas;
+}
+
+// ---------------------------------------------------------------------------
+// Room
+// ---------------------------------------------------------------------------
+
+function hollowCircle(ctx, cx, cy, r) {
+  ctx.strokeStyle = STROKE;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+// Counter circles are derived, not authored, so the counter stays a single rect
+// in room.json however many circles end up spanning it.
+function counterCircles(rect) {
+  const d = Math.min(COUNTER_DIAMETER, rect.h);
+  const count = Math.max(1, Math.round(rect.w / (d + 6)));
+  const step = rect.w / count;
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    out.push({ cx: rect.x + step * (i + 0.5), cy: rect.y + d / 2 + 2, r: d / 2 });
+  }
+  return out;
+}
+
+function zonesOfType(room, type) {
+  return (room.zones || []).filter((z) => z.type === type);
+}
+
+function drawRoomBg(room, canvas) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = FLOOR;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = WALL;
+  ctx.fillRect(0, 0, canvas.width, WALL_HEIGHT);
+
+  // Every table is one circle inscribed in its rect.
+  for (const z of zonesOfType(room, 'table')) {
+    hollowCircle(ctx, z.x + z.w / 2, z.y + z.h / 2, Math.min(z.w, z.h) / 2 - 1);
+  }
+  for (const z of zonesOfType(room, 'counter')) {
+    for (const c of counterCircles(z)) hollowCircle(ctx, c.cx, c.cy, c.r - 1);
+  }
+  return canvas;
+}
+
+function drawRoomFg(room, canvas) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Only the front edge of the counter, which should occlude a cat standing
+  // behind it no matter how the y-sort falls.
+  for (const z of zonesOfType(room, 'counter')) {
+    for (const c of counterCircles(z)) {
+      ctx.strokeStyle = STROKE;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(c.cx, c.cy, c.r - 1, 0, Math.PI); // lower half only
+      ctx.stroke();
+    }
+  }
+  return canvas;
+}
+
+// ---------------------------------------------------------------------------
+// Page wiring
+// ---------------------------------------------------------------------------
+
+const bgCanvas = document.getElementById('bg');
+const fgCanvas = document.getElementById('fg');
+const catsHost = document.getElementById('cats');
+const statusEl = document.getElementById('status');
+const roomText = document.getElementById('roomjson');
+
+let catCanvases = [];
+
+function catName(i) {
+  return 'cat-' + String(i + 1).padStart(2, '0') + '.png';
+}
+
+function buildCats() {
+  catsHost.innerHTML = '';
+  catCanvases = [];
+  for (let i = 0; i < CAT_COUNT; i++) {
+    const canvas = drawCatSheet(i);
+    catCanvases.push(canvas);
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    canvas.style.width = canvas.width * 2 + 'px';
+    canvas.style.height = canvas.height * 2 + 'px';
+    tile.appendChild(canvas);
+    const label = document.createElement('div');
+    label.textContent = catName(i) + ' · ' + (CAT_MIN_DIAMETER + i) + 'px';
+    tile.appendChild(label);
+    catsHost.appendChild(tile);
+  }
+}
+
+function drawRoom(room) {
+  drawRoomBg(room, bgCanvas);
+  drawRoomFg(room, fgCanvas);
+}
+
+function setStatus(text) {
+  statusEl.textContent = text;
+}
+
+function currentRoom() {
+  try {
+    return JSON.parse(roomText.value);
+  } catch (err) {
+    setStatus('Room JSON did not parse: ' + err.message);
+    return null;
+  }
+}
+
+function download(canvas, filename) {
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+document.getElementById('redraw').addEventListener('click', () => {
+  const room = currentRoom();
+  if (!room) return;
+  drawRoom(room);
+  setStatus('Redrawn from the text area.');
+});
+
+document.getElementById('reload').addEventListener('click', loadRoom);
+
+document.getElementById('dl-room').addEventListener('click', () => {
+  download(bgCanvas, 'room-bg.png');
+  download(fgCanvas, 'room-fg.png');
+});
+
+document.getElementById('dl-cats').addEventListener('click', () => {
+  catCanvases.forEach((canvas, i) => download(canvas, catName(i)));
+});
+
+document.getElementById('dl-all').addEventListener('click', () => {
+  download(bgCanvas, 'room-bg.png');
+  download(fgCanvas, 'room-fg.png');
+  catCanvases.forEach((canvas, i) => download(canvas, catName(i)));
+});
+
+async function loadRoom() {
+  let room = DEFAULT_ROOM;
+  try {
+    // Works when served over HTTP. Opened from disk this throws, and the
+    // built-in layout below is used instead.
+    const res = await fetch('../data/room.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    room = await res.json();
+    setStatus('Loaded ../data/room.json');
+  } catch (err) {
+    setStatus('Using the built-in layout (' + err.message + '). Paste room.json below to match your room.');
+  }
+  roomText.value = JSON.stringify(room, null, 2);
+  drawRoom(room);
+}
+
+// Exposed so the assets can also be generated headlessly, which is how the
+// committed PNGs were made.
+window.CafePlaceholders = { drawCatSheet, drawRoomBg, drawRoomFg, catName, CAT_COUNT };
+
+buildCats();
+loadRoom();
+</script>
+</body>
+</html>
