@@ -259,6 +259,17 @@ function drawRoomFg(room, canvas) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // A table's back half goes in the foreground so that a cat standing behind the
+  // table is drawn behind it. The front half stays in the background, where a
+  // cat standing in front covers it. Sprites draw between the two layers.
+  for (const z of zonesOfType(room, 'table')) {
+    ctx.strokeStyle = STROKE;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(z.x + z.w / 2, z.y + z.h / 2, Math.min(z.w, z.h) / 2 - 1, Math.PI, Math.PI * 2);
+    ctx.stroke();
+  }
+
   // Only the front edge of the counter, which should occlude a cat standing
   // behind it no matter how the y-sort falls.
   for (const z of zonesOfType(room, 'counter')) {

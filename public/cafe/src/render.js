@@ -1,12 +1,23 @@
 import { VIEW, PLAYER } from './config.js';
 import { frameRect } from './sprites.js';
 
-// Stand-in floor until the room art lands in phase 4.
-export function drawFloor(ctx) {
+// Draw order per frame: background, then sprites sorted by y, then foreground.
+export function drawBackground(ctx, image) {
+  if (image) {
+    ctx.drawImage(image, 0, 0);
+    return;
+  }
+  // Art missing: keep the room legible rather than blanking the screen.
   ctx.fillStyle = '#8f8f95';
   ctx.fillRect(0, 0, VIEW.width, VIEW.height);
   ctx.fillStyle = '#6e6e75';
   ctx.fillRect(0, 0, VIEW.width, 40);
+}
+
+// Whatever should always occlude a sprite: the front edge of the counter, the
+// back half of each table.
+export function drawForeground(ctx, image) {
+  if (image) ctx.drawImage(image, 0, 0);
 }
 
 // Every player is drawn the same way, local or not. Sorting ascending by y is

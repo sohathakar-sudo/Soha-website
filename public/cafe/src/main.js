@@ -1,9 +1,10 @@
-import { VIEW, CATS } from './config.js';
+import { VIEW, CATS, PATHS } from './config.js';
 import { createLoop } from './loop.js';
 import { attachInput, readInput, hasMovement } from './input.js';
 import { createPlayer, applyMovement } from './player.js';
-import { loadCatSheet, createRenderState, advanceAnimation } from './sprites.js';
-import { drawFloor, drawPlayers } from './render.js';
+import { loadCatSheet, loadImage, createRenderState, advanceAnimation } from './sprites.js';
+import { drawBackground, drawForeground, drawPlayers } from './render.js';
+import { loadRoom } from './room.js';
 import * as net from './net.js';
 
 const canvas = document.getElementById('game');
@@ -54,15 +55,6 @@ function addPlayer(player) {
   return player;
 }
 
-addPlayer(createPlayer({
-  id: 'local',
-  name: 'guest',
-  catId: CATS[3],
-  // Phase 4 replaces this with the spawn point from room.json.
-  x: VIEW.width / 2,
-  y: VIEW.height / 2 + 40,
-}));
-
 const ZERO_INPUT = { left: false, right: false, up: false, down: false, interact: false };
 
 // The only place the local player is special: it reads the keyboard. Remote
@@ -70,8 +62,6 @@ const ZERO_INPUT = { left: false, right: false, up: false, down: false, interact
 function inputFor(player) {
   return player.id === 'local' ? readInput() : ZERO_INPUT;
 }
-
-attachInput();
 
 // --- Loop ------------------------------------------------------------------
 let tick = 0;
@@ -84,7 +74,7 @@ function update(dt) {
 
     if (player.id === 'local') net.sendInput(input, tick);
 
-    const moved = applyMovement(player, input, dt, null); // collision arrives in phase 4
+    const moved = applyMovement(player, input, dt, room);
     player.x = moved.x;
     player.y = moved.y;
     player.dir = moved.dir;
@@ -98,8 +88,9 @@ function update(dt) {
 
 function render() {
   ctx.imageSmoothingEnabled = false;
-  drawFloor(ctx);
+  drawBackground(ctx, art.bg);
   drawPlayers(ctx, players, renderStates, sheets);
+  drawForeground(ctx, art.fg);
 
   const me = players.get('local');
   ctx.fillStyle = '#111';
@@ -113,7 +104,48 @@ function render() {
 
 // Multiplayer hook: snapshots would be applied to room state here.
 net.onSnapshot(() => {});
-net.connect();
 
 const loop = createLoop({ update, render });
-loop.start();
+
+// --- Boot ------------------------------------------------------------------
+let room = null;
+const art = { bg: null, fg: null };
+
+async function boot() {
+  const [loadedRoom, bg, fg] = await Promise.all([
+    loadRoom(),
+    loadImage(PATHS.assets + 'room-bg.png').catch(() => null),
+    loadImage(PATHS.assets + 'room-fg.png').catch(() => null),
+  ]);
+
+  room = loadedRoom;
+  art.bg = bg;
+  art.fg = fg;
+
+  addPlayer(createPlayer({
+    id: 'local',
+    name: 'guest',
+    catId: CATS[3],
+    x: room.spawn.x,
+    y: room.spawn.y,
+  }));
+
+  attachInput();
+  net.connect();
+  loop.start();
+
+  // A handle for the console and for the debug editor in phase 7. Read-only in
+  // spirit: the game never reads anything back off it.
+  window.cafe = { players, renderStates, room, art, loop };
+}
+
+boot().catch((err) => {
+  console.error(err);
+  ctx.fillStyle = '#1a1a1e';
+  ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+  ctx.fillStyle = '#e8e8ec';
+  ctx.font = '8px monospace';
+  ctx.textBaseline = 'top';
+  ctx.fillText('Could not start: ' + err.message, 8, 8);
+  ctx.fillText('The game needs a server — see cafe/README.md', 8, 20);
+});
