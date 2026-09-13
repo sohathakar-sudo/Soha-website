@@ -1,8 +1,8 @@
 import { VIEW, PATHS } from './config.js';
 import { createLoop } from './loop.js';
-import { attachInput, readInput, hasMovement, consumePress } from './input.js';
+import { attachInput, readInput, consumePress } from './input.js';
 import { createPlayer, applyMovement, applyInteraction, isSeated } from './player.js';
-import { loadCatSheet, loadImage, createRenderState, advanceAnimation } from './sprites.js';
+import { loadCatSheet, loadImage, createRenderState } from './sprites.js';
 import { drawBackground, drawForeground, drawPlayers } from './render.js';
 import { loadRoom } from './room.js';
 import { showTitle, drawHud } from './ui.js';
@@ -119,11 +119,8 @@ function stepPlayer(player, input, dt) {
     const moved = applyMovement(player, input, dt, room);
     player.x = moved.x;
     player.y = moved.y;
-    player.dir = moved.dir;
-    player.state = hasMovement(input) ? 'walking' : 'idle';
+    player.state = 'walking';
   }
-
-  advanceAnimation(renderStates.get(player.id), player.state, player.dir, dt);
 }
 
 // --- Loop ------------------------------------------------------------------
@@ -148,9 +145,7 @@ function update(dt) {
 
 // What Enter would do from where the player is standing.
 function promptFor(player) {
-  if (isSeated(player)) {
-    return player.state === 'sitting' ? 'ENTER  work' : 'ENTER  stop working';
-  }
+  if (isSeated(player)) return '';
   const zone = room ? room.zoneAt(player.x, player.y) : null;
   if (!zone) return '';
   return zone.type === 'counter' ? 'ENTER  coffee' : 'ENTER  sit';

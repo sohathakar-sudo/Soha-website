@@ -1,5 +1,4 @@
 import { VIEW, PLAYER } from './config.js';
-import { frameRect } from './sprites.js';
 
 // Draw order per frame: background, then sprites sorted by y, then foreground.
 export function drawBackground(ctx, image) {
@@ -20,8 +19,9 @@ export function drawForeground(ctx, image) {
   if (image) ctx.drawImage(image, 0, 0);
 }
 
-// Every player is drawn the same way, local or not. Sorting ascending by y is
-// what makes someone standing further up the room appear behind someone nearer.
+// Every player is drawn the same way, local or not. Sorting ascending by the
+// ground point is what makes someone standing further up the room appear behind
+// someone nearer.
 export function drawPlayers(ctx, players, renderStates, sheets) {
   const ordered = [...players.values()].sort((a, b) => a.y - b.y);
 
@@ -29,13 +29,10 @@ export function drawPlayers(ctx, players, renderStates, sheets) {
     const sheet = sheets.get(player.catId);
     if (!sheet) continue;
 
-    const renderState = renderStates.get(player.id);
-    if (!renderState) continue;
-
-    const { sx, sy, sw, sh } = frameRect(player.state, player.dir, renderState);
+    // One frame, always the same one. Faces replace this entirely next phase.
     ctx.drawImage(
       sheet,
-      sx, sy, sw, sh,
+      0, 0, PLAYER.sprite.w, PLAYER.sprite.h,
       Math.round(player.x - PLAYER.anchor.x),
       Math.round(player.y - PLAYER.anchor.y),
       PLAYER.sprite.w,

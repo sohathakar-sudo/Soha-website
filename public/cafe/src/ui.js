@@ -1,4 +1,4 @@
-import { CATS, VIEW, SHEET } from './config.js';
+import { CATS, VIEW, PLAYER } from './config.js';
 import { loadCatSheet } from './sprites.js';
 
 const NAME_KEY = 'cafe:name';
@@ -52,16 +52,16 @@ export function showTitle() {
     button.setAttribute('aria-pressed', String(id === catId));
 
     const canvas = document.createElement('canvas');
-    canvas.width = SHEET.frameWidth;
-    canvas.height = SHEET.frameHeight;
+    canvas.width = PLAYER.sprite.w;
+    canvas.height = PLAYER.sprite.h;
     button.appendChild(canvas);
 
     loadCatSheet(id)
       .then((sheet) => {
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
-        // Row 0, frame 0: the idle pose, facing the player.
-        ctx.drawImage(sheet, 0, 0, SHEET.frameWidth, SHEET.frameHeight, 0, 0, SHEET.frameWidth, SHEET.frameHeight);
+        // The first 32x32 frame of the sheet; faces replace this next phase.
+        ctx.drawImage(sheet, 0, 0, PLAYER.sprite.w, PLAYER.sprite.h, 0, 0, PLAYER.sprite.w, PLAYER.sprite.h);
       })
       .catch(() => { button.textContent = id; });
 

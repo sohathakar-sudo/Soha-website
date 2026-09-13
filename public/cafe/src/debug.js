@@ -1,4 +1,4 @@
-import { VIEW, DIRECTIONS } from './config.js';
+import { VIEW } from './config.js';
 
 const MIN_SIZE = 4;
 const HANDLE = 5; // corner grab area, in native pixels
@@ -104,10 +104,7 @@ export function createDebugEditor({ canvas, room, loop, players, localId }) {
     const item = placing.kind === 'solid'
       ? { x, y, w: 0, h: 0 }
       : { type: placing.type, x, y, w: 0, h: 0 };
-    if (placing.type === 'table') {
-      item.seat = { x, y };
-      item.facing = 'up';
-    }
+    if (placing.type === 'table') item.seat = { x, y };
     const list = placing.kind === 'solid' ? room.solids : room.zones;
     list.push(item);
     selected = { list, item };
@@ -164,14 +161,6 @@ export function createDebugEditor({ canvas, room, loop, players, localId }) {
       return;
     }
 
-    // [ and ] cycle the facing of the selected table zone.
-    if ((event.code === 'BracketLeft' || event.code === 'BracketRight') && selected && selected.item.type === 'table') {
-      const current = DIRECTIONS.indexOf(selected.item.facing);
-      const step = event.code === 'BracketRight' ? 1 : -1;
-      const next = (current + step + DIRECTIONS.length) % DIRECTIONS.length;
-      selected.item.facing = DIRECTIONS[next];
-      event.preventDefault();
-    }
   }
 
   async function copyJson() {
@@ -247,12 +236,9 @@ export function createDebugEditor({ canvas, room, loop, players, localId }) {
         drawRect(ctx, zone, COLORS.zoneFill, COLORS.zoneLine);
         if (!zone.seat) continue;
 
-        // Seat position, with a stub pointing the way the seat faces.
         const { x, y } = zone.seat;
         ctx.fillStyle = COLORS.seat;
         ctx.fillRect(x - 1, y - 1, 3, 3);
-        const reach = { down: [0, 5], up: [0, -5], left: [-5, 0], right: [5, 0] }[zone.facing] || [0, 0];
-        ctx.fillRect(x + Math.min(0, reach[0]), y + Math.min(0, reach[1]), Math.abs(reach[0]) || 1, Math.abs(reach[1]) || 1);
       }
 
       if (selected) {
@@ -268,9 +254,8 @@ export function createDebugEditor({ canvas, room, loop, players, localId }) {
       label(ctx, `fps ${loop.stats.fps}  ${Math.round(me.x)},${Math.round(me.y)}  ${me.state}`, 4, 4);
 
       const what = placing.kind === 'solid' ? 'solid' : placing.type + ' zone';
-      const facing = selected && selected.item.type === 'table' ? `  facing ${selected.item.facing}` : '';
-      label(ctx, `placing ${what}${facing}`, VIEW.width - 4, 4, 'right');
-      label(ctx, '1 solid  2 table  3 counter  shift-click seat  [ ] facing  del remove', VIEW.width / 2, VIEW.height - 10, 'center');
+      label(ctx, `placing ${what}`, VIEW.width - 4, 4, 'right');
+      label(ctx, '1 solid  2 table  3 counter  shift-click seat  del remove', VIEW.width / 2, VIEW.height - 10, 'center');
     },
   };
 }
