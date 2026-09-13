@@ -19,6 +19,9 @@ export const PLAYER = {
   // Collision box sits at the sprite's feet, not around the whole 32x32 frame.
   hitbox: { w: 16, h: 8 },
   sprite: { w: 32, h: 32 },
+  // Where the player's (x, y) sits inside the 32x32 frame: centred, on the
+  // ground the dot stands on.
+  anchor: { x: 16, y: 28 },
 };
 
 // Sprite sheets are 4 columns x 6 rows of 32x32 frames (128x192 PNG).

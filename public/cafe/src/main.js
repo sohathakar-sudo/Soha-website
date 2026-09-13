@@ -1,5 +1,9 @@
-import { VIEW } from './config.js';
+import { VIEW, CATS } from './config.js';
 import { createLoop } from './loop.js';
+import { attachInput, readInput, hasMovement } from './input.js';
+import { createPlayer, applyMovement } from './player.js';
+import { loadCatSheet, createRenderState, advanceAnimation } from './sprites.js';
+import { drawFloor, drawPlayers } from './render.js';
 import * as net from './net.js';
 
 const canvas = document.getElementById('game');
@@ -11,11 +15,10 @@ canvas.height = VIEW.height;
 // --- Integer scaling -------------------------------------------------------
 // The backing store stays at native resolution. Only the CSS size changes, so
 // every pixel is upscaled by a whole number and nothing ever blurs.
-let scale = 1;
-
 // Scale against the element the canvas sits in, not the window, so the game also
 // behaves when it is embedded in a page that has other content around it.
 const stage = canvas.parentElement;
+let scale = 1;
 
 function resize() {
   const availW = stage.clientWidth || window.innerWidth;
@@ -31,48 +34,81 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-// --- Scaffold scene --------------------------------------------------------
-// A single rectangle bouncing around the room, here only to prove that the
-// fixed-timestep loop and the scaling maths are both correct. Phase 3 replaces
-// it with real players.
-const box = { x: 40, y: 60, w: 24, h: 16, vx: 70, vy: 45 };
+// --- Room state ------------------------------------------------------------
+// Every player lives here, the local one included. Nothing downstream may treat
+// 'local' differently except input handling and the camera.
+const players = new Map();
+
+// Render state is deliberately a separate map: animation timers are not part of
+// the room and never travel over the wire.
+const renderStates = new Map();
+
+const sheets = new Map();
+
+function addPlayer(player) {
+  players.set(player.id, player);
+  renderStates.set(player.id, createRenderState());
+  loadCatSheet(player.catId)
+    .then((img) => sheets.set(player.catId, img))
+    .catch((err) => console.error(err));
+  return player;
+}
+
+addPlayer(createPlayer({
+  id: 'local',
+  name: 'guest',
+  catId: CATS[3],
+  // Phase 4 replaces this with the spawn point from room.json.
+  x: VIEW.width / 2,
+  y: VIEW.height / 2 + 40,
+}));
+
+const ZERO_INPUT = { left: false, right: false, up: false, down: false, interact: false };
+
+// The only place the local player is special: it reads the keyboard. Remote
+// players will get their input from snapshots through the same path.
+function inputFor(player) {
+  return player.id === 'local' ? readInput() : ZERO_INPUT;
+}
+
+attachInput();
+
+// --- Loop ------------------------------------------------------------------
 let tick = 0;
 
 function update(dt) {
   tick++;
 
-  box.x += box.vx * dt;
-  box.y += box.vy * dt;
+  for (const player of players.values()) {
+    const input = inputFor(player);
 
-  if (box.x < 0) { box.x = 0; box.vx = -box.vx; }
-  if (box.y < 0) { box.y = 0; box.vy = -box.vy; }
-  if (box.x + box.w > VIEW.width) { box.x = VIEW.width - box.w; box.vx = -box.vx; }
-  if (box.y + box.h > VIEW.height) { box.y = VIEW.height - box.h; box.vy = -box.vy; }
+    if (player.id === 'local') net.sendInput(input, tick);
 
-  // Multiplayer hook: this is where the local input for the tick would go out.
-  net.sendInput(null, tick);
+    const moved = applyMovement(player, input, dt, null); // collision arrives in phase 4
+    player.x = moved.x;
+    player.y = moved.y;
+    player.dir = moved.dir;
+
+    // The rest of the state machine — sitting, working, coffee — lands in phase 5.
+    player.state = hasMovement(input) ? 'walking' : 'idle';
+
+    advanceAnimation(renderStates.get(player.id), player.state, player.dir, dt);
+  }
 }
 
 function render() {
   ctx.imageSmoothingEnabled = false;
+  drawFloor(ctx);
+  drawPlayers(ctx, players, renderStates, sheets);
 
-  ctx.fillStyle = '#8c8c92';
-  ctx.fillRect(0, 0, VIEW.width, VIEW.height);
-
-  // Corner markers, so letterboxing and the integer scale are easy to eyeball.
-  ctx.fillStyle = '#3a3a40';
-  ctx.fillRect(0, 0, VIEW.width, 1);
-  ctx.fillRect(0, VIEW.height - 1, VIEW.width, 1);
-  ctx.fillRect(0, 0, 1, VIEW.height);
-  ctx.fillRect(VIEW.width - 1, 0, 1, VIEW.height);
-
-  ctx.fillStyle = '#111';
-  ctx.fillRect(Math.round(box.x), Math.round(box.y), box.w, box.h);
-
+  const me = players.get('local');
   ctx.fillStyle = '#111';
   ctx.font = '8px monospace';
   ctx.textBaseline = 'top';
-  ctx.fillText(`${VIEW.width}x${VIEW.height} @ ${scale}x  fps ${loop.stats.fps}`, 4, 4);
+  ctx.fillText(
+    `${scale}x  fps ${loop.stats.fps}  ${Math.round(me.x)},${Math.round(me.y)}  ${me.dir} ${me.state}`,
+    4, 4,
+  );
 }
 
 // Multiplayer hook: snapshots would be applied to room state here.
