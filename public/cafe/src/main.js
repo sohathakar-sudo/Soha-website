@@ -39,7 +39,9 @@ resize();
 
 // --- Room state ------------------------------------------------------------
 // Every player lives here, the local one included. Nothing downstream may treat
-// 'local' differently except input handling and the camera.
+// 'local' differently except input handling and the view (HUD, and a camera when
+// there is one).
+const LOCAL_ID = 'local';
 const players = new Map();
 
 // Render state is deliberately a separate map: animation timers are not part of
@@ -48,12 +50,29 @@ const renderStates = new Map();
 
 const sheets = new Map();
 
+function removePlayer(id) {
+  players.delete(id);
+  renderStates.delete(id);
+}
+
+// Any player can arrive wearing a cat nobody has loaded yet, and a player can
+// change cats between snapshots, so this runs on every update rather than only
+// when someone joins.
+function ensureSheet(catId) {
+  if (sheets.has(catId)) return;
+  sheets.set(catId, null); // claim it, so a slow load is not started twice
+  loadCatSheet(catId)
+    .then((img) => sheets.set(catId, img))
+    .catch((err) => {
+      sheets.delete(catId);
+      console.error(err);
+    });
+}
+
 function addPlayer(player) {
   players.set(player.id, player);
   renderStates.set(player.id, createRenderState());
-  loadCatSheet(player.catId)
-    .then((img) => sheets.set(player.catId, img))
-    .catch((err) => console.error(err));
+  ensureSheet(player.catId);
   return player;
 }
 
@@ -85,8 +104,26 @@ function rememberCoffees(count) {
 
 // The only place the local player is special: it reads the keyboard. Remote
 // players will get their input from snapshots through the same path.
-function inputFor(player) {
-  return player.id === 'local' ? readInput() : ZERO_INPUT;
+function inputFor(player, localInput) {
+  return player.id === LOCAL_ID ? localInput : ZERO_INPUT;
+}
+
+// One player, one tick. Identical for everyone in the map: whether the input
+// came from this keyboard or from a snapshot makes no difference here.
+function stepPlayer(player, input, dt) {
+  // Interactions first: they can stand a seated player up in time for the
+  // same tick's movement.
+  Object.assign(player, applyInteraction(player, input, room));
+
+  if (!isSeated(player)) {
+    const moved = applyMovement(player, input, dt, room);
+    player.x = moved.x;
+    player.y = moved.y;
+    player.dir = moved.dir;
+    player.state = hasMovement(input) ? 'walking' : 'idle';
+  }
+
+  advanceAnimation(renderStates.get(player.id), player.state, player.dir, dt);
 }
 
 // --- Loop ------------------------------------------------------------------
@@ -97,27 +134,16 @@ function update(dt) {
 
   if (consumePress('Backquote') && editor) editor.toggle();
 
+  // Reading this keyboard and sending it upstream are local concerns, so they
+  // happen here rather than inside the loop that treats every player alike.
+  const localInput = readInput();
+  net.sendInput(localInput, tick);
+
   for (const player of players.values()) {
-    const input = inputFor(player);
-
-    if (player.id === 'local') net.sendInput(input, tick);
-
-    // Interactions first: they can stand a seated player up in time for the
-    // same tick's movement.
-    Object.assign(player, applyInteraction(player, input, room));
-
-    if (!isSeated(player)) {
-      const moved = applyMovement(player, input, dt, room);
-      player.x = moved.x;
-      player.y = moved.y;
-      player.dir = moved.dir;
-      player.state = hasMovement(input) ? 'walking' : 'idle';
-    }
-
-    if (player.id === 'local') rememberCoffees(player.coffees);
-
-    advanceAnimation(renderStates.get(player.id), player.state, player.dir, dt);
+    stepPlayer(player, inputFor(player, localInput), dt);
   }
+
+  rememberCoffees(players.get(LOCAL_ID).coffees);
 }
 
 // What Enter would do from where the player is standing.
@@ -136,7 +162,7 @@ function render() {
   drawPlayers(ctx, players, renderStates, sheets);
   drawForeground(ctx, art.fg);
 
-  const me = players.get('local');
+  const me = players.get(LOCAL_ID);
   // The editor replaces the HUD rather than crowding it: both want the same
   // corners.
   if (editor && editor.active) {
@@ -146,8 +172,28 @@ function render() {
   }
 }
 
-// Multiplayer hook: snapshots would be applied to room state here.
-net.onSnapshot(() => {});
+// Multiplayer hook. Nothing sends snapshots yet, but this is the shape one takes:
+// upsert everyone the server knows about, drop everyone it no longer does.
+// Reconciling the local player's own predicted position is the piece phase two
+// will have to add.
+net.onSnapshot((snapshot) => {
+  const seen = new Set();
+
+  for (const incoming of snapshot.players || []) {
+    seen.add(incoming.id);
+    const existing = players.get(incoming.id);
+    if (existing) {
+      Object.assign(existing, incoming);
+      ensureSheet(existing.catId);
+    } else {
+      addPlayer(createPlayer(incoming));
+    }
+  }
+
+  for (const id of [...players.keys()]) {
+    if (!seen.has(id)) removePlayer(id);
+  }
+});
 
 const loop = createLoop({ update, render });
 
@@ -171,7 +217,7 @@ async function boot() {
   const choice = await showTitle();
 
   const me = createPlayer({
-    id: 'local',
+    id: LOCAL_ID,
     name: choice.name,
     catId: choice.catId,
     x: room.spawn.x,
@@ -183,7 +229,7 @@ async function boot() {
   addPlayer(me);
 
   attachInput();
-  editor = createDebugEditor({ canvas, room, loop, players });
+  editor = createDebugEditor({ canvas, room, loop, players, localId: LOCAL_ID });
   net.connect();
   loop.start();
 

@@ -40,7 +40,7 @@ function onHandle(rect, x, y) {
 
 // The editor owns its own listeners and its own state. The game neither knows
 // nor cares that it exists; it only calls toggle() and draw().
-export function createDebugEditor({ canvas, room, loop, players }) {
+export function createDebugEditor({ canvas, room, loop, players, localId }) {
   const bar = document.getElementById('debug-bar');
   const copyButton = document.getElementById('debug-copy');
   const copyNote = document.getElementById('debug-note');
@@ -264,7 +264,7 @@ export function createDebugEditor({ canvas, room, loop, players }) {
         ctx.fillRect(r.x + r.w - 2, r.y + r.h - 2, 4, 4); // resize handle
       }
 
-      const me = players.get('local');
+      const me = players.get(localId);
       label(ctx, `fps ${loop.stats.fps}  ${Math.round(me.x)},${Math.round(me.y)}  ${me.state}`, 4, 4);
 
       const what = placing.kind === 'solid' ? 'solid' : placing.type + ' zone';
