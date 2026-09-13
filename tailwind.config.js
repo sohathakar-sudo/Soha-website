@@ -21,12 +21,16 @@ module.exports = {
       fontFamily: {
         serif: "var(--font-serif)",
         sans: "var(--font-sans)",
+        garamond: "var(--font-garamond)",
       },
       // Registered under `spacing` rather than `width` so it generates the
       // padding utilities too (`pl-rail`) — the content pane offsets itself
       // by the rail width, and `width` alone only yields `w-rail`.
       spacing: {
         rail: "var(--rail-width)",
+      },
+      borderColor: {
+        rule: "var(--cafe-rule)",
       },
       maxWidth: {
         pane: "var(--pane-max-width)",

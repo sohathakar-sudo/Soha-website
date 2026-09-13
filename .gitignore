@@ -1,0 +1,16 @@
+# Dependencies
+/node_modules
+
+# Next.js build output
+/.next
+/out
+
+# Test output
+/test-results
+/playwright-report
+
+# Local env files
+.env*.local
+
+# OS noise
+.DS_Store

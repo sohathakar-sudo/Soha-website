@@ -106,17 +106,73 @@ test.describe("scroll indicator", () => {
 });
 
 test.describe("icon rail", () => {
-  test("marks the current page and disables unbuilt ones", async ({ page }) => {
+  test("marks the current page", async ({ page }) => {
     await page.goto("/");
 
     await expect(page.getByTestId("icon-home")).toHaveAttribute(
       "aria-current",
       "page"
     );
-    await expect(page.getByTestId("icon-reading")).toHaveAttribute(
-      "aria-disabled",
-      "true"
+  });
+
+  test("only lists pages that exist", async ({ page }) => {
+    await page.goto("/");
+
+    // The rail never advertises a room you can't walk into: every entry is
+    // a real route, so nothing renders disabled.
+    const links = page.getByTestId("icon-nav").locator("a");
+    await expect(links).toHaveCount(2);
+    await expect(page.getByTestId("icon-nav").locator("[aria-disabled]")).toHaveCount(0);
+  });
+
+  test("opens the cafe from the Garamond wordmark on the rail", async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    const door = page.getByTestId("icon-cafe");
+    await expect(door).toHaveText("Cafe");
+    await expect(door).toHaveCSS("font-style", "italic");
+
+    await door.click();
+    await expect(page).toHaveURL(/\/cafe$/);
+    await expect(page.getByTestId("icon-cafe")).toHaveAttribute(
+      "aria-current",
+      "page"
     );
+  });
+});
+
+test.describe("work cafe", () => {
+  test("renders every section from content/cafe.json and cafe.md", async ({
+    page,
+  }) => {
+    await page.goto("/cafe");
+
+    for (const id of ["welcome", "menu", "rules", "ambience"]) {
+      await expect(page.locator(`#${id}`)).toHaveCount(1);
+    }
+    await expect(page.getByTestId("cafe-counter")).toBeVisible();
+  });
+
+  test("starts a countdown when you order off the menu", async ({ page }) => {
+    await page.goto("/cafe");
+
+    await expect(page.getByTestId("cafe-timer")).toHaveCount(0);
+
+    await page.getByTestId("menu-item-25").click();
+    await expect(page.getByTestId("cafe-timer")).toHaveText(/^2[45]:/);
+    await expect(page.getByTestId("cafe-status")).toContainText("Brewing");
+
+    // Pause holds the clock, clear puts the table back.
+    await page.getByTestId("cafe-toggle").click();
+    await expect(page.getByTestId("cafe-status")).toContainText("Paused");
+    const held = await page.getByTestId("cafe-timer").textContent();
+    await page.waitForTimeout(1200);
+    await expect(page.getByTestId("cafe-timer")).toHaveText(held);
+
+    await page.getByTestId("cafe-clear").click();
+    await expect(page.getByTestId("cafe-timer")).toHaveCount(0);
   });
 });
 

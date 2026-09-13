@@ -88,11 +88,23 @@ The scroll indicator finds sections by reading the page, so it picks up the
 new one automatically — there's no list to keep in sync. Order on the page
 is the order in the navigation.
 
-## Bringing a rail page online
+## The rail, and adding a page to it
 
-The icons along the rail are placeholders for pages that don't exist yet.
-To activate one: create the route under `app/`, then in
-[`lib/nav.js`](lib/nav.js) give that entry an `href` and remove `pending`.
+The rail only ever lists pages that exist — it doesn't advertise rooms you
+can't walk into. Two are live today: home (🏠) and the cafe.
+
+To add another: create the route under `app/`, then add an entry to
+[`lib/nav.js`](lib/nav.js) with its `href`. An entry with `wordmark: true`
+renders as a word set in Garamond rather than an emoji — that's how the
+cafe's door is drawn.
+
+## The work cafe
+
+`/cafe` is a quiet corner to actually work in. Order something off the menu
+and it starts a countdown; the menu, house rules, and the line about what's
+playing all live in [`content/cafe.json`](content/cafe.json), and the
+welcome in `content/cafe.md`. No code needed to reword any of it, or to
+change how long a "Long black" runs.
 
 ## Design changes with Paper
 
