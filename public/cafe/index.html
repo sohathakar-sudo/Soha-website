@@ -11,6 +11,8 @@
     height: 100%;
     background: #101014;
     overflow: hidden;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: #e8e8ec;
   }
   #stage {
     position: fixed;
@@ -25,6 +27,69 @@
     image-rendering: crisp-edges;
     background: #000;
   }
+
+  /* --- title screen ----------------------------------------------------- */
+  #title {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    background: rgba(16, 16, 20, .94);
+    padding: 24px;
+    box-sizing: border-box;
+  }
+  #title[hidden] { display: none; }
+  #title h1 {
+    margin: 0;
+    font-size: 28px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  #title p { margin: 0; color: #9a9aa4; font-size: 13px; text-align: center; }
+  #title label { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: #9a9aa4; }
+  .field { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  #title-name {
+    font: inherit;
+    font-size: 16px;
+    width: 220px;
+    padding: 8px 10px;
+    text-align: center;
+    color: #e8e8ec;
+    background: #1d1d23;
+    border: 1px solid #3a3a45;
+    border-radius: 4px;
+  }
+  #title-cats { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 440px; }
+  .cat-choice {
+    padding: 4px;
+    background: #8f8f95;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    line-height: 0;
+  }
+  .cat-choice canvas { width: 48px; height: 48px; image-rendering: pixelated; }
+  .cat-choice[aria-pressed="true"] { border-color: #c98a4b; }
+  .cat-choice:hover { border-color: #e8e8ec; }
+  #title-play {
+    font: inherit;
+    font-size: 15px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    padding: 10px 30px;
+    color: #101014;
+    background: #c98a4b;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  #title-play:hover { background: #ddA061; }
+  :focus-visible { outline: 2px solid #c98a4b; outline-offset: 3px; }
+
   #mobile-notice {
     display: none;
     position: fixed;
@@ -32,7 +97,8 @@
     z-index: 10;
     background: #101014;
     color: #e8e8ec;
-    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
     align-items: center;
     justify-content: center;
     text-align: center;
@@ -46,7 +112,23 @@
 </head>
 <body>
   <div id="stage"><canvas id="game"></canvas></div>
+
+  <div id="title" hidden>
+    <h1>Cat Café</h1>
+    <p>WASD or arrows to walk · Enter to sit, work and buy coffee</p>
+    <div class="field">
+      <label for="title-name">Your name</label>
+      <input id="title-name" type="text" maxlength="16" autocomplete="off" spellcheck="false" placeholder="guest" />
+    </div>
+    <div class="field">
+      <label id="cats-label">Pick a cat</label>
+      <div id="title-cats" role="group" aria-labelledby="cats-label"></div>
+    </div>
+    <button id="title-play" type="button">Play</button>
+  </div>
+
   <div id="mobile-notice"><p>Cat Café is desktop only for now.<br />Come back on a bigger screen.</p></div>
+
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
