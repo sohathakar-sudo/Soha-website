@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Cat Café</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #101014;
+    overflow: hidden;
+  }
+  #stage {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #000;
+  }
+  #mobile-notice {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    background: #101014;
+    color: #e8e8ec;
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+    box-sizing: border-box;
+  }
+  @media (max-width: 699px) {
+    #mobile-notice { display: flex; }
+  }
+</style>
+</head>
+<body>
+  <div id="stage"><canvas id="game"></canvas></div>
+  <div id="mobile-notice"><p>Cat Café is desktop only for now.<br />Come back on a bigger screen.</p></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
