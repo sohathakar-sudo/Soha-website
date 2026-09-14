@@ -278,8 +278,9 @@ function build() {
     .filter((pixels) => pixels.length >= MIN_AREA)
     .flatMap((pixels) => toRects(pixels).filter((r) => r.w >= 3 && r.h >= 3));
 
-  // Walls and every other solid.
-  for (const rect of collect('wall')) room.solids.push(rect);
+  // Walls and every other solid. Each solid carries what it is, so the art
+  // generator never has to guess from geometry.
+  for (const rect of collect('wall')) room.solids.push({ ...rect, kind: 'wall' });
 
   // Tables: the object is one rect; seats go on every open side.
   const tableRects = [];
@@ -288,7 +289,7 @@ function build() {
       if (pixels.length < MIN_AREA) continue;
       const rect = bounds(pixels);
       tableRects.push(rect);
-      room.solids.push(rect);
+      room.solids.push({ ...rect, kind: 'table' });
       const seats = tableSeats(rect);
       room.zones.push({
         type: 'table',
@@ -304,7 +305,7 @@ function build() {
     if (pixels.length < MIN_AREA) continue;
     for (const rect of toRects(pixels)) {
       if (rect.w < 3 || rect.h < 3) continue;
-      room.solids.push(rect);
+      room.solids.push({ ...rect, kind: 'counter' });
       for (const side of ['north', 'south', 'west', 'east']) {
         if (sideIsOpen(rect, side, STRIP)) room.zones.push({ type: 'counter', ...stripOn(rect, side) });
       }
@@ -316,7 +317,7 @@ function build() {
     if (pixels.length < MIN_AREA) continue;
     for (const rect of toRects(pixels)) {
       if (rect.w < 3 || rect.h < 3) continue;
-      room.solids.push(rect);
+      room.solids.push({ ...rect, kind: 'bar' });
       const seats = barSeats(rect);
       if (!seats.length) { notes.push(['warn', `A bar rail at ${rect.x},${rect.y} has no room for stools.`]); continue; }
       const xs = seats.map((s) => s.x), ys = seats.map((s) => s.y);
@@ -335,7 +336,7 @@ function build() {
   for (const pixels of components('jukebox')) {
     if (pixels.length < MIN_AREA) continue;
     const rect = bounds(pixels);
-    room.solids.push(rect);
+    room.solids.push({ ...rect, kind: 'jukebox' });
     const side = ['south', 'west', 'east', 'north'].find((s) => sideIsOpen(rect, s, STRIP));
     if (side) room.zones.push({ type: 'jukebox', ...stripOn(rect, side) });
     else notes.push(['warn', `The jukebox at ${rect.x},${rect.y} has no approach.`]);
@@ -380,21 +381,25 @@ function check(room, notes) {
 
   // Narrow gaps between objects, measured along each axis.
   let tight = 0;
+  const where = [];
   for (let i = 0; i < room.solids.length; i++) {
     for (let j = i + 1; j < room.solids.length; j++) {
       const a = room.solids[i], b = room.solids[j];
       const overlapY = a.y < b.y + b.h && a.y + a.h > b.y;
       const overlapX = a.x < b.x + b.w && a.x + a.w > b.x;
+      // Under 10px is flush — furniture against a wall, which is deliberate.
+      // Between 10 and 48 is the bad case: it looks like a way through and isn't.
+      const narrow = (gap) => gap >= 10 && gap < 48;
       if (overlapY) {
         const gap = b.x > a.x ? b.x - (a.x + a.w) : a.x - (b.x + b.w);
-        if (gap > 0 && gap < 48) tight++;
+        if (narrow(gap)) { tight++; where.push(`${a.kind || 'solid'}/${b.kind || 'solid'} ${gap}px`); }
       } else if (overlapX) {
         const gap = b.y > a.y ? b.y - (a.y + a.h) : a.y - (b.y + b.h);
-        if (gap > 0 && gap < 48) tight++;
+        if (narrow(gap)) { tight++; where.push(`${a.kind || 'solid'}/${b.kind || 'solid'} ${gap}px`); }
       }
     }
   }
-  if (tight) notes.push(['warn', `${tight} gaps between objects are under 48px — those will feel like a squeeze.`]);
+  if (tight) notes.push(['warn', `${tight} gaps are too narrow to walk through but wide enough to look like a way through: ${where.slice(0, 6).join(', ')}.`]);
 
   notes.push(['ok', `${room.solids.length} solids, ${room.zones.length} zones, ${seats.length} seats.`]);
   if (seats.length < 8) notes.push(['warn', 'Under 8 seats — the room will feel empty at capacity.']);

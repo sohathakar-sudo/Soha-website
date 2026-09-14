@@ -122,6 +122,10 @@ than fussy.
 
 ---
 
+Each solid in the exported JSON carries a `kind` — `wall`, `table`, `counter`,
+`bar` or `jukebox`. The game ignores it; the placeholder art generator uses it to
+know what to draw, so it never has to guess a wall from a counter by geometry.
+
 ## 3. The workflow
 
 1. Open `tools/layout-template.html`, download **layout-template.png** — a
