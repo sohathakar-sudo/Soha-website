@@ -66,6 +66,39 @@ Open question worth settling before building: what does the end of a focus
 session actually do? A chime, a visible state on your face, a tally? And do
 "beepers" mean a timer ending, or something you send another person?
 
+## Small talk
+
+Ephemeral text between people in the room. Cheap — it rides the same connection
+as the game state, a message is a few hundred bytes against position updates
+sent ten times a second — so the cost question is settled and only the design
+matters.
+
+Press `/` to type. Click a person first and the bubble points at them.
+
+| Setting | Default | Why |
+|---|---|---|
+| Visibility | a bubble anyone nearby can read, not a private message | a channel between two strangers with no witnesses is where harassment lives; in a room where everyone sees it, behaviour self-polices |
+| Length | 180 characters | 300 is a paragraph; 180 makes brevity structural |
+| On screen | 4s + 60ms per character, capped at 12s | 8 seconds is under half the time needed to read 300 characters |
+| Rate limit | one message per 5 seconds | |
+| Repeat rule | you cannot send to the same person twice until they reply | stops one-way pestering, which is the actual failure mode |
+| Proximity | sender must be within a short radius | no shouting across the room |
+| Mute | per person, client-side, kept in `localStorage` | |
+| Report | the reporter's browser keeps the last few messages and sends them only if they hit report | keeps the no-logs stance while leaving someone who is abused with something to report |
+| Server | forwards, never stores | nothing at rest means nothing to moderate, leak or retain |
+| Profanity filter | none | word lists are bypassed in seconds and give false confidence |
+
+Ephemerality buys a lot — no archive, no retention policy, almost no privacy
+surface — but it does not make a message unsaid. The recipient can screenshot,
+and someone being unpleasant is still being unpleasant. The report buffer is
+what keeps "no memory" from meaning "no recourse".
+
+| | |
+|---|---|
+| Bubble rendering, `/` input, length and timing, mute plumbing | S — buildable solo, testable on your own face |
+| Wiring it to other people | S, once multiplayer exists |
+| Report buffer and per-person mute | S |
+
 ## Social and polish
 
 | | |
@@ -83,6 +116,10 @@ session actually do? A chime, a visible state on your face, a tally? And do
 |---|---|
 | Multiplayer — server, snapshots, interpolation, reconciliation | L |
 | Voice chat you can tune into and leave | L |
+
+If small talk lands well, the case for voice weakens considerably: it delivers
+most of the "someone is here with me" feeling for none of the cost and a
+fraction of the risk.
 
 **Voice chat is the riskiest item here.** Live audio between strangers on a
 personal site means consent, moderation and a bill that scales with usage. If it
@@ -115,5 +152,6 @@ it gets built.
 5. Side panel and feedback box — before anyone else sees it.
 6. Focus time. The biggest idea, and the one that decides what the café is for.
 7. Jukebox with curated tracks.
-8. Multiplayer.
+8. Multiplayer — which is also what makes small talk mean anything. Build the
+   bubble UI before then; it is testable solo.
 9. Voice chat, if you still want it by then.
