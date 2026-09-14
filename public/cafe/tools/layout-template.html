@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>The Café — layout template</title>
+<style>
+  body { margin: 0; padding: 24px; background: #16161a; color: #e8e8ec;
+         font: 14px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; color: #9a9aa4; max-width: 70ch; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #9a9aa4; margin: 24px 0 10px; }
+  canvas { image-rendering: pixelated; background: #fff; max-width: 100%; }
+  button { font: inherit; background: #4a6f4a; color: #fff; border: 1px solid #5d8a5d;
+           border-radius: 5px; padding: 7px 14px; cursor: pointer; }
+  button:hover { background: #5a8258; }
+  table { border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 4px 14px 4px 0; }
+  th { color: #9a9aa4; font-weight: 500; }
+  .sw { display: inline-block; width: 14px; height: 14px; vertical-align: -2px;
+        border: 1px solid #45454f; margin-right: 6px; }
+  code { background: #26262c; padding: 1px 4px; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<h1>Layout template</h1>
+<p class="sub">
+  Download this, drop it into Figma as a locked bottom layer, and draw your room over it
+  with flat rectangles in these colours. Then export your layout as a 640 × 360 PNG at 1×
+  and feed it to <code>import-map.html</code>.
+</p>
+
+<div><button id="download">Download layout-template.png</button></div>
+
+<h2>The key</h2>
+<table id="key"></table>
+
+<h2>Template — 640 × 360</h2>
+<canvas id="sheet" width="640" height="360" style="width:960px"></canvas>
+
+<script>
+const KEY = [
+  { name: 'Wall / solid',   hex: '#000000', note: 'blocks movement, nothing else' },
+  { name: 'Table (small)',  hex: '#FF0000', note: '44 × 28 — a seat on every open side' },
+  { name: 'Table (big)',    hex: '#FF00FF', note: '64 × 40 — a seat on every open side' },
+  { name: 'Coffee counter', hex: '#0000FF', note: '48 deep — order strip on every open side' },
+  { name: 'Bar rail',       hex: '#00FFFF', note: '16 deep — a stool every 48' },
+  { name: 'Jukebox',        hex: '#FFFF00', note: '24 × 40' },
+  { name: 'Seat (optional)',hex: '#00FF00', note: 'a dot; overrides the automatic seats' },
+  { name: 'Spawn',          hex: '#FF8000', note: 'a dot; where players arrive' },
+];
+
+const keyTable = document.getElementById('key');
+keyTable.innerHTML = '<tr><th>Element</th><th>Colour</th><th>Becomes</th></tr>' + KEY.map((k) =>
+  `<tr><td><span class="sw" style="background:${k.hex}"></span>${k.name}</td>` +
+  `<td><code>${k.hex}</code></td><td>${k.note}</td></tr>`).join('');
+
+const canvas = document.getElementById('sheet');
+const ctx = canvas.getContext('2d');
+
+ctx.fillStyle = '#ffffff';
+ctx.fillRect(0, 0, 640, 360);
+
+// 8px grid, with every 5th line stronger. Everything in the room should land on it.
+for (let x = 0; x <= 640; x += 8) {
+  ctx.fillStyle = x % 40 === 0 ? '#c9c9d2' : '#ececf1';
+  ctx.fillRect(x, 0, 1, 360);
+}
+for (let y = 0; y <= 360; y += 8) {
+  ctx.fillStyle = y % 40 === 0 ? '#c9c9d2' : '#ececf1';
+  ctx.fillRect(0, y, 640, 1);
+}
+
+// Outer walls at their real thickness, so the drawable floor is obvious.
+ctx.fillStyle = '#000000';
+ctx.fillRect(0, 0, 640, 48);   // back wall
+ctx.fillRect(0, 48, 8, 312);
+ctx.fillRect(632, 48, 8, 312);
+ctx.fillRect(0, 352, 640, 8);
+
+// Every element at true size, to copy rather than measure.
+function block(x, y, w, h, hex, label) {
+  ctx.fillStyle = hex;
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#33302c';
+  ctx.font = '8px monospace';
+  ctx.textBaseline = 'top';
+  ctx.fillText(label, x, y + h + 3);
+}
+
+block(40, 90, 44, 28, '#FF0000', 'table 44x28');
+block(130, 90, 64, 40, '#FF00FF', 'table 64x40');
+block(240, 90, 48, 120, '#0000FF', 'counter 48 deep');
+block(330, 90, 16, 120, '#00FFFF', 'bar rail 16 deep');
+block(390, 90, 24, 40, '#FFFF00', 'jukebox 24x40');
+
+ctx.fillStyle = '#00FF00';
+ctx.fillRect(450, 96, 6, 6);
+ctx.fillStyle = '#FF8000';
+ctx.fillRect(470, 96, 6, 6);
+ctx.fillStyle = '#33302c';
+ctx.font = '8px monospace';
+ctx.fillText('seat / spawn dots', 446, 108);
+
+// The distances that decide whether the room feels right.
+function gap(x, y, w, label) {
+  ctx.fillStyle = '#8a8a94';
+  ctx.fillRect(x, y, w, 2);
+  ctx.fillRect(x, y - 3, 1, 8);
+  ctx.fillRect(x + w - 1, y - 3, 1, 8);
+  ctx.fillStyle = '#33302c';
+  ctx.fillText(label, x, y + 6);
+}
+
+ctx.font = '8px monospace';
+gap(40, 250, 48, '48 min lane');
+gap(130, 250, 64, '64 comfortable');
+gap(240, 250, 80, '80 main route');
+gap(360, 250, 88, '88 doorway');
+
+ctx.fillStyle = '#33302c';
+ctx.fillText('draw only objects — zones and seats are computed on import', 40, 300);
+ctx.fillText('flat fills, no opacity, no strokes, no radius, no rotation', 40, 312);
+ctx.fillText('leave 1px between two shapes of the same colour', 40, 324);
+
+document.getElementById('download').addEventListener('click', () => {
+  const link = document.createElement('a');
+  link.download = 'layout-template.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+});
+</script>
+</body>
+</html>

@@ -1,167 +1,142 @@
-# Layout legend
+# Layout kit
 
-Every dimension you need to design the room, and how to hand a layout back so it
-becomes `room.json` without anyone typing coordinates.
+Everything you need to draw the room in Figma and have it become `room.json`
+exactly, with no coordinates typed by hand.
 
-All numbers are in room pixels. The room is authored at **640 × 360** and scaled
-up by whole numbers at runtime (2× on a 1280-wide window, 3× on 1920). Design at
-640 × 360 exactly.
-
----
-
-## A person
-
-This is the unit everything else is measured against.
-
-| | |
-|---|---|
-| Face PNG | **32 × 32**, transparent, face centred |
-| Ground point `(x, y)` | the spot on the floor they stand on — *not* the centre of the face |
-| Face is drawn | centred at `(x, y − 14)`, so it occupies **x−16…x+16, y−30…y+2** |
-| Bob | ±2px vertical while walking |
-| Collision box | **16 wide × 8 tall**: `x−8…x+8, y−8…y` |
-| Shadow | ellipse **16 × 5** at the ground point |
-| Walking speed | 60 px/s — 10.7s to cross the room, 0.8s to cross a 48px lane |
-
-**For layout purposes a person is a 32-wide column standing on an 8px foot, and
-their head reaches 30px above where they stand.** Anything within 30px above a
-seat will be overlapped by the face sitting there.
+The room is **640 × 360**. One pixel here is one pixel in the game. Work at 1×
+in Figma and export at 1×.
 
 ---
 
-## The three layers that define a piece of furniture
+## 1. The colour key
 
-This is the distinction that produced the "you can walk around the table but
-can't sit on that side" problem. Every seatable object needs all three.
+Draw the layout as flat rectangles. The colour *is* the element type.
 
-1. **Solid** — the rectangle that blocks movement. The tabletop itself.
-2. **Zone** — where pressing Enter does something. Must cover **every side you
-   can stand on**, not just one.
-3. **Seats** — the exact points you snap to. A list, one entry per person.
+| Element | Colour | Hex | What it becomes |
+|---|---|---|---|
+| Wall / any solid obstacle | black | `#000000` | a collision rect, nothing else |
+| Table, small | red | `#FF0000` | solid + table zone + a seat on every open side |
+| Table, big | magenta | `#FF00FF` | solid + table zone + a seat on every open side |
+| Coffee counter | blue | `#0000FF` | solid + counter zone on the open side |
+| Bar rail | cyan | `#00FFFF` | solid + bar zone + a stool every 48px |
+| Jukebox | yellow | `#FFFF00` | solid + jukebox zone beside it |
+| Seat (optional) | green dot | `#00FF00` | one seat exactly there — overrides the automatic ones |
+| Spawn | orange dot | `#FF8000` | where players arrive |
+| Floor | anything else | — | ignored; use white |
 
-Rules, enforced by the importer:
+Rules for the export, because the importer reads raw pixels:
 
-- A zone extends **≥ 20px beyond its solid** on every side that has a seat.
-- Every seat lies **inside its own zone** and **outside every solid** (a seat
-  inside a solid is unreachable — you can never stand there to press Enter).
-- Seats belong to the zone they sit inside. Two zones must not overlap.
+- **Flat fills only.** No opacity, no gradients, no shadows, no strokes, no
+  corner radius, no rotation.
+- **Export PNG at 1×**, 640 × 360, no background effects.
+- Slight anti-aliasing at edges is fine — colours are matched by nearest
+  neighbour and stray edge pixels are ignored.
+- Two rectangles of the same colour that touch read as **one** object. Leave at
+  least 1px between them.
+- **L-shapes are fine.** A counter or bar drawn as an L is cut back into
+  rectangles, and the empty corner stays empty.
 
----
-
-## Furniture sizes
-
-Recommended, not enforced. The importer takes whatever you draw.
-
-### Big table — 4 seats
-
-| | |
-|---|---|
-| Solid | 64 × 32 |
-| Seats | 4: above, below, left, right of the tabletop |
-| Seat offset | 14px clear of the tabletop edge, centred on that edge |
-| Zone | solid grown by 26px on all four sides → **116 × 84** |
-
-With a 64-wide top you can also put **two seats along the long sides** — centres
-36px apart — for a six-seater. Faces are 32 wide, so 36 apart is the tightest
-spacing that doesn't overlap.
-
-### Small table — 2 seats
-
-| | |
-|---|---|
-| Solid | 44 × 28 |
-| Seats | above and below |
-| Zone | solid grown by 26px → **96 × 80** |
-
-### Counter
-
-| | |
-|---|---|
-| Solid | length × 20 deep |
-| Service zone | 40px deep along the approach side |
-| Stools (optional) | seats every **36px** along the approach side, 14px off the counter edge |
-
-A counter with seats behaves exactly like a table: Enter takes the nearest free
-stool. A counter with no seats only serves coffee.
-
-### Bar run
-
-| | |
-|---|---|
-| Rail solid | 16 deep, any length |
-| Stools | every **48px** along it |
-| Seat offset | 14px off the rail |
-| Zone | 40px deep along the seated side |
-
-Leave the corner of an L empty — start the stools a full seat-width in, or it's
-ambiguous which run a seat belongs to.
-
-### Jukebox
-
-| | |
-|---|---|
-| Solid | 24 × 32 |
-| Zone | 40 × 40 on the approach side |
+You only draw the **objects**. Zones and seats are computed — that's what stops
+the "you can walk round that side but can't sit there" problem.
 
 ---
 
-## Spacing minimums
+## 2. Sizes
+
+### The person
 
 | | |
 |---|---|
-| Walking lane between any two obstacles | **48px** comfortable, 40px absolute floor |
-| Two seats side by side | **36px** centre to centre |
-| Behind a seat (space to pull out and stand) | 24px |
-| Floor between a wall and the first furniture | 24px |
-| Wall thickness | 8px at the room edge, 20px for a dividing wall |
-| Doorway opening | 90px |
+| Face PNG | 32 × 32 |
+| Visible head inside it | about 24 across |
+| Hover — face centre above the ground point | 14 |
+| Bob | ± 2 |
+| Ground point | the spot on the floor; collision, seating and depth all use it |
+| Collision box | 16 × 8, centred on the ground point, extending *up* from it |
 
-Twelve people at 32px wide each need somewhere to be: 16 seats, and enough open
-floor that the room doesn't feel solved. The empty middle is the feature.
+A face is 5% of the room's width. Thick lines, bold shapes — fine pen work
+disappears.
 
----
+### Furniture
 
-## Handing a layout back
-
-Draw a **layout map**: a 640 × 360 frame of flat colour blocks, one per element.
-It is not artwork — it's data I can read. Room art is separate, and comes later.
-
-### The colour key
-
-Exact RGB, flat fills, **no anti-aliasing, no gradients, no opacity**.
-
-| Colour | Hex | Means |
+| Element | Size | Notes |
 |---|---|---|
-| Magenta | `#FF00FF` | solid — blocks movement |
-| Cyan | `#00FFFF` | table zone |
-| Yellow | `#FFFF00` | counter zone |
-| Green | `#00FF00` | bar zone |
-| Orange | `#FF8000` | jukebox zone |
-| Red | `#FF0000` | a seat — one small square, 4 × 4 is plenty |
-| Blue | `#0000FF` | spawn point — one square |
-| anything else | | ignored |
+| Table, small | **44 × 28** | put it against a wall and it seats two |
+| Table, big | **64 × 40** | free-standing, so it seats four |
+| Coffee counter | **48 deep**, 96–160 long | you stand at it; no seats |
+| Bar rail | **16 deep**, any length | stools every 48 along it |
+| Jukebox | **24 × 40** | one landmark, don't make it bigger |
+| Outer wall | **8 thick** | |
+| Internal dividing wall | **16–20 thick** | |
 
-### Rules for drawing it
+### Distances — these are the ones that decide whether it feels right
 
-- Axis-aligned rectangles only.
-- Zones sit **on top of** the solids they belong to — draw the zone, then the
-  solid inside it, then the seat squares. Overlap is expected and correct.
-- Don't let two zones touch or overlap each other.
-- Seat squares go on floor you can actually stand on, never on a solid.
+| | Minimum | Comfortable |
+|---|---|---|
+| Walking lane between two objects | **48** | 64 |
+| Main route across the room | 64 | **80** |
+| Doorway width | **88** | 96 |
+| Between two seats | 24 | **36** |
+| Seat back to the wall behind it | 16 | 24 |
+| Table edge to seat (computed for you) | 14 | |
 
-### In Figma
+48 is two people passing: each is 16 wide with clearance either side. Anything
+under it reads as a squeeze, which is occasionally what you want and usually
+not.
 
-- Frame exactly 640 × 360.
-- Export **PNG at 1×**. If you export at 2× or 4× it still works — I downscale
-  with smoothing off — but 1× is exact.
-- Turn off any layer blur, shadow or opacity. A 99%-opacity magenta is not
-  magenta.
+The two table colours behave identically — the colour only tells you which size
+you meant. How many seats a table gets is decided by where you put it, not by
+which red you used: a table with its back to a wall seats two or three, one out
+in the open seats four.
 
-### Then
+### Seat placement, computed
 
-Open `tools/layout-map.html`, drop the PNG in, and it prints the finished
-`room.json` with a Copy button, plus warnings for anything that violates the
-rules above. Paste it over `data/room.json`.
+For every table, the importer looks at all four sides and places a seat on
+**each side that has clear floor beyond it**. So if you can walk round that end
+of the table, you can sit at that end. That is the rule, and it is not
+negotiable by hand-editing — redraw the table so the side is blocked if you
+don't want a seat there.
 
-The same page exports the **current** room as a layout map PNG, so you can start
-from what exists rather than a blank frame.
+| Side | Seat position |
+|---|---|
+| South | table centre x, `table.y + table.h + 14` |
+| North | table centre x, `table.y - 12` |
+| West | `table.x - 14`, table centre y + 8 |
+| East | `table.x + table.w + 14`, table centre y + 8 |
+
+Bar stools sit **12 out** from the rail on its open side, spaced **48** apart,
+starting a full 48 in from each end so an L-shaped corner is never ambiguous.
+
+### Zones, computed
+
+A zone is the area you stand in for `Enter` to do something. It is always
+**bigger than the object** — that's what makes interaction feel generous rather
+than fussy.
+
+| Zone | Extent |
+|---|---|
+| Table | the table grown by 24 on every side, so it covers every seat |
+| Counter | a 40-wide strip along **every** open side, so an L-shaped counter can be ordered from on both faces |
+| Bar | the rail plus 32 on the stool side |
+| Jukebox | a 40-wide strip on the open side |
+
+---
+
+## 3. The workflow
+
+1. Open `tools/layout-template.html`, download **layout-template.png** — a
+   640 × 360 frame with an 8px grid, the colour key, and every element drawn at
+   true size to copy.
+2. In Figma, drop it in as a locked bottom layer. Draw your layout over it with
+   flat rectangles in the key colours.
+3. Export your layout as a 640 × 360 PNG at 1× — the key layer hidden, floor
+   white.
+4. Open `tools/import-map.html`, drop the PNG in. It shows what it found, warns
+   about lanes under 48, seats inside walls, tables with an unseatable open
+   side, and anything it couldn't identify.
+5. **Copy JSON** → paste over `data/room.json`. Refresh the game.
+6. Nudge anything by hand in the debug editor (`` ` ``), then Copy JSON from
+   there.
+
+Redrawing and re-importing takes seconds, so iterate on the drawing rather than
+on the JSON.
