@@ -209,8 +209,8 @@ function isFloor(x, y) {
   return v === 0 || NAMES[v - 1] === 'seat' || NAMES[v - 1] === 'spawn';
 }
 
-// Is there room to stand on this side of a rect?
-function sideIsOpen(rect, side, depth = CLEAR_DEPTH) {
+// How much of the band beyond this side is clear floor, 0 to 1.
+function openness(rect, side, depth = CLEAR_DEPTH) {
   let free = 0, total = 0;
   const scan = (x, y) => { total++; if (isFloor(x, y)) free++; };
 
@@ -219,7 +219,12 @@ function sideIsOpen(rect, side, depth = CLEAR_DEPTH) {
   if (side === 'west')  for (let y = rect.y; y < rect.y + rect.h; y++) for (let d = 1; d <= depth; d++) scan(rect.x - d, y);
   if (side === 'east')  for (let y = rect.y; y < rect.y + rect.h; y++) for (let d = 1; d <= depth; d++) scan(rect.x + rect.w - 1 + d, y);
 
-  return total > 0 && free / total >= OPEN_RATIO;
+  return total > 0 ? free / total : 0;
+}
+
+// Is there room to stand on this side of a rect?
+function sideIsOpen(rect, side, depth = CLEAR_DEPTH) {
+  return openness(rect, side, depth) >= OPEN_RATIO;
 }
 
 function tableSeats(rect) {
@@ -337,8 +342,12 @@ function build() {
     if (pixels.length < MIN_AREA) continue;
     const rect = bounds(pixels);
     room.solids.push({ ...rect, kind: 'jukebox' });
-    const side = ['south', 'west', 'east', 'north'].find((s) => sideIsOpen(rect, s, STRIP));
-    if (side) room.zones.push({ type: 'jukebox', ...stripOn(rect, side) });
+    // People queue at the jukebox, so it faces whichever side has the most room
+    // to stand rather than the first side that happens to be clear.
+    const side = ['south', 'west', 'east', 'north']
+      .map((name) => ({ name, room: openness(rect, name, STRIP * 2) }))
+      .sort((a, b) => b.room - a.room)[0];
+    if (side && side.room > 0.4) room.zones.push({ type: 'jukebox', ...stripOn(rect, side.name) });
     else notes.push(['warn', `The jukebox at ${rect.x},${rect.y} has no approach.`]);
   }
 

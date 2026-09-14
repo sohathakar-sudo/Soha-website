@@ -210,6 +210,19 @@ function classify(room) {
   return { furniture, walls };
 }
 
+function roundedRect(ctx, rect, radius, fill, stroke) {
+  const r = Math.min(radius, rect.w / 2, rect.h / 2);
+  ctx.beginPath();
+  ctx.moveTo(rect.x + r, rect.y);
+  ctx.arcTo(rect.x + rect.w, rect.y, rect.x + rect.w, rect.y + rect.h, r);
+  ctx.arcTo(rect.x + rect.w, rect.y + rect.h, rect.x, rect.y + rect.h, r);
+  ctx.arcTo(rect.x, rect.y + rect.h, rect.x, rect.y, r);
+  ctx.arcTo(rect.x, rect.y, rect.x + rect.w, rect.y, r);
+  ctx.closePath();
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); }
+}
+
 function hollowCircle(ctx, cx, cy, r, color = CHARCOAL) {
   ctx.strokeStyle = color;
   ctx.lineWidth = 2;
@@ -218,24 +231,26 @@ function hollowCircle(ctx, cx, cy, r, color = CHARCOAL) {
   ctx.stroke();
 }
 
-// Evenly spaced circles down the long axis of a rect.
-function spanCircles(rect) {
-  const vertical = rect.h > rect.w;
-  const across = vertical ? rect.w : rect.h;
-  const along = vertical ? rect.h : rect.w;
-  const d = Math.min(across, 26);
-  const count = Math.max(1, Math.round(along / (d + 6)));
-  const step = along / count;
-  const out = [];
-  for (let i = 0; i < count; i++) {
-    const offset = step * (i + 0.5);
-    out.push({
-      cx: vertical ? rect.x + rect.w / 2 : rect.x + offset,
-      cy: vertical ? rect.y + offset : rect.y + rect.h / 2,
-      r: d / 2 - 1,
-    });
+// A chair: small, drawn at the seat itself, so the number of places to sit is
+// visible in the art rather than hidden in the data.
+function chair(ctx, seat) {
+  roundedRect(ctx, { x: seat.x - 7, y: seat.y - 9, w: 14, h: 14 }, 4, CREAM, CHARCOAL);
+}
+
+// Which zone a furniture solid belongs to, so its seats can be drawn with it.
+function zoneFor(room, solid, type) {
+  let best = null;
+  let bestDistance = Infinity;
+  const cx = solid.x + solid.w / 2;
+  const cy = solid.y + solid.h / 2;
+  for (const zone of room.zones || []) {
+    if (zone.type !== type) continue;
+    const zx = zone.x + zone.w / 2;
+    const zy = zone.y + zone.h / 2;
+    const distance = (zx - cx) ** 2 + (zy - cy) ** 2;
+    if (distance < bestDistance) { bestDistance = distance; best = zone; }
   }
-  return out;
+  return best;
 }
 
 function drawRoomBg(room, canvas) {
@@ -275,13 +290,46 @@ function drawRoomBg(room, canvas) {
 
   for (const [solid, type] of furniture) {
     if (type === 'table') {
-      hollowCircle(ctx, solid.x + solid.w / 2, solid.y + solid.h / 2, Math.min(solid.w, solid.h) / 2 - 1);
+      // The table is drawn at exactly the rect that blocks you, so walking
+      // around its edge matches what you see.
+      roundedRect(ctx, solid, 8, CREAM_SHADE, CHARCOAL);
+      const zone = zoneFor(room, solid, 'table');
+      for (const seat of (zone && zone.seats) || []) chair(ctx, seat);
     } else if (type === 'counter') {
-      for (const c of spanCircles(solid)) hollowCircle(ctx, c.cx, c.cy, c.r);
-    } else if (type === 'bar') {
-      // The rail is one solid charcoal run. It lives here and never occludes.
+      // Solid, not a row of circles: circles read as stools, and nobody sits
+      // at the counter — you order there.
       ctx.fillStyle = CHARCOAL;
       ctx.fillRect(solid.x, solid.y, solid.w, solid.h);
+    } else if (type === 'bar') {
+      ctx.fillStyle = CHARCOAL;
+      ctx.fillRect(solid.x, solid.y, solid.w, solid.h);
+    }
+  }
+
+  // Red along the counter's open faces: this is where you order. The band is
+  // drawn inside the counter, along exactly the stretch the zone touches.
+  const overlap = (a0, a1, b0, b1) => [Math.max(a0, b0), Math.min(a1, b1)];
+  const BAND = 4;
+  const MIN_FACE = 16;
+
+  for (const zone of zonesOfType(room, 'counter')) {
+    for (const solid of (room.solids || []).filter((s) => s.kind === 'counter')) {
+      const [y0, y1] = overlap(zone.y, zone.y + zone.h, solid.y, solid.y + solid.h);
+      const [x0, x1] = overlap(zone.x, zone.x + zone.w, solid.x, solid.x + solid.w);
+      ctx.fillStyle = RED;
+
+      if (Math.abs(zone.x + zone.w - solid.x) <= 1 && y1 - y0 >= MIN_FACE) {
+        ctx.fillRect(solid.x, y0, BAND, y1 - y0);
+      }
+      if (Math.abs(solid.x + solid.w - zone.x) <= 1 && y1 - y0 >= MIN_FACE) {
+        ctx.fillRect(solid.x + solid.w - BAND, y0, BAND, y1 - y0);
+      }
+      if (Math.abs(zone.y + zone.h - solid.y) <= 1 && x1 - x0 >= MIN_FACE) {
+        ctx.fillRect(x0, solid.y, x1 - x0, BAND);
+      }
+      if (Math.abs(solid.y + solid.h - zone.y) <= 1 && x1 - x0 >= MIN_FACE) {
+        ctx.fillRect(x0, solid.y + solid.h - BAND, x1 - x0, BAND);
+      }
     }
   }
 
@@ -317,15 +365,17 @@ function drawRoomFg(room, canvas) {
   const { furniture } = classify(room);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Only what should cover a face standing behind it: the back half of each
+  // Only what should cover a face standing behind it: the back edge of each
   // table. The bar rail is deliberately not here — nothing passes behind it.
   for (const [solid, type] of furniture) {
     if (type !== 'table') continue;
-    ctx.strokeStyle = CHARCOAL;
-    ctx.lineWidth = 2;
+    const back = { x: solid.x, y: solid.y, w: solid.w, h: Math.round(solid.h / 2) };
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(solid.x + solid.w / 2, solid.y + solid.h / 2, Math.min(solid.w, solid.h) / 2 - 1, Math.PI, Math.PI * 2);
-    ctx.stroke();
+    ctx.rect(back.x - 2, back.y - 2, back.w + 4, back.h + 2);
+    ctx.clip();
+    roundedRect(ctx, solid, 8, CREAM_SHADE, CHARCOAL);
+    ctx.restore();
   }
 
   return canvas;
