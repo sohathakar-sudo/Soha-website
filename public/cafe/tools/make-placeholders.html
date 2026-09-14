@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Cat Café — placeholder art generator</title>
+<title>The Café — placeholder art generator</title>
 <style>
   body {
     margin: 0;
@@ -15,9 +15,11 @@
   p.sub { margin: 0 0 20px; color: #9a9aa4; }
   section { margin-bottom: 28px; }
   h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .08em; color: #9a9aa4; margin: 0 0 10px; }
-  canvas { image-rendering: pixelated; background: #26262c; vertical-align: top; }
+  canvas { image-rendering: pixelated; vertical-align: top; }
+  .room canvas { background: #26262c; max-width: 100%; }
   .tiles { display: flex; flex-wrap: wrap; gap: 14px; }
   .tile { text-align: center; }
+  .tile canvas { background: #f0e6d6; }
   .tile div { margin-top: 4px; font-size: 11px; color: #9a9aa4; }
   button {
     font: inherit;
@@ -32,7 +34,7 @@
   button.primary { background: #4a6f4a; border-color: #5d8a5d; }
   textarea {
     width: 100%;
-    max-width: 720px;
+    max-width: 760px;
     height: 130px;
     font: 12px/1.4 monospace;
     background: #101014;
@@ -49,10 +51,11 @@
 </head>
 <body>
 
-<h1>Cat Café — placeholder art generator</h1>
+<h1>The Café — placeholder art generator</h1>
 <p class="sub">
-  Draws every asset at its exact shipping size. Download them into <code>assets/</code>.
-  No dependencies — this page can be opened straight from disk.
+  Draws every asset at its exact shipping size: the 640 × 360 room layers and eight
+  32 × 32 faces. Download them into <code>assets/</code>. No dependencies — this page
+  works opened straight from disk.
 </p>
 
 <section>
@@ -65,19 +68,19 @@
   <textarea id="roomjson" spellcheck="false"></textarea>
 </section>
 
-<section>
-  <h2>Room — 480 × 270</h2>
+<section class="room">
+  <h2>Room — 640 × 360</h2>
   <div class="row"><button id="dl-room">Download both room PNGs</button></div>
   <div class="tiles">
-    <div class="tile"><canvas id="bg" width="480" height="270"></canvas><div>room-bg.png</div></div>
-    <div class="tile"><canvas id="fg" width="480" height="270"></canvas><div>room-fg.png (transparent)</div></div>
+    <div class="tile"><canvas id="bg" width="640" height="360"></canvas><div>room-bg.png</div></div>
+    <div class="tile"><canvas id="fg" width="640" height="360"></canvas><div>room-fg.png (transparent)</div></div>
   </div>
 </section>
 
 <section>
-  <h2>Cats — 128 × 192 each (4 × 6 frames of 32 × 32)</h2>
-  <div class="row"><button id="dl-cats">Download all 8 cat sheets</button></div>
-  <div class="tiles" id="cats"></div>
+  <h2>Faces — 32 × 32 each</h2>
+  <div class="row"><button id="dl-faces">Download all 8 faces</button></div>
+  <div class="tiles" id="faces"></div>
 </section>
 
 <section>
@@ -90,119 +93,74 @@
 
 <script>
 // ---------------------------------------------------------------------------
-// Palette. The placeholders are deliberately abstract: black dots moving among
-// hollow circles. No cat anatomy, no hues.
+// Three colours, fixed. Red is an accent, not a fill: in a room about people the
+// people should be the brightest thing in it.
 // ---------------------------------------------------------------------------
-const FLOOR  = '#8f8f95';
-const WALL   = '#6e6e75';
-const STROKE = '#55555c';
-const DOT    = '#000000';
+const CREAM = '#f0e6d6';
+const CREAM_SHADE = '#e4d7c3';
+const CHARCOAL = '#33302c';
+const RED = '#c2493d';
 
-const SHEET  = { frame: 32, cols: 4, rows: 6 };
-const CAT_COUNT = 8;
-const CAT_MIN_DIAMETER = 17; // variants step 17px .. 24px, nothing else changes
+const VIEW = { width: 640, height: 360 };
+const FACE_SIZE = 32;
+const FACE_COUNT = 8;
 
-// Walk cycle: frame 0 is neutral so it can double as the idle pose. The bob is
-// a full 2px so the animation is obvious, and the contact frame squashes.
-const WALK_FRAMES = [
-  { bob: 0,  sx: 1.00, sy: 1.00 },
-  { bob: -2, sx: 0.96, sy: 1.04 },
-  { bob: 0,  sx: 1.10, sy: 0.92 },
-  { bob: -2, sx: 0.96, sy: 1.04 },
-];
-
-const ROW = { down: 0, up: 1, left: 2, right: 3, sit: 4, work: 5 };
-const SIT_ORDER = ['down', 'up', 'left', 'right']; // column order of row 4
+// Faces differ only in the diameter of the head and the width of the mouth, so
+// eight of them stay distinguishable at 1x without any colour.
+const FACE_DIAMETER = [20, 22, 24, 26, 21, 23, 25, 27];
+const MOUTH_WIDTH   = [4, 7, 5, 9, 10, 6, 8, 3];
 
 const DEFAULT_ROOM = {
-  solids: [],
-  zones: [
-    { type: 'table', x: 56, y: 86, w: 48, h: 48 },
-    { type: 'table', x: 156, y: 86, w: 48, h: 48 },
-    { type: 'table', x: 56, y: 176, w: 48, h: 48 },
-    { type: 'table', x: 156, y: 176, w: 48, h: 48 },
-    { type: 'counter', x: 300, y: 60, w: 120, h: 44 },
+  solids: [
+    { x: 0, y: 0, w: 640, h: 48 },
+    { x: 0, y: 48, w: 8, h: 312 },
+    { x: 632, y: 48, w: 8, h: 312 },
+    { x: 0, y: 352, w: 640, h: 8 },
+    { x: 480, y: 48, w: 20, h: 72 },
+    { x: 480, y: 210, w: 20, h: 142 },
   ],
-  spawn: { x: 240, y: 220 },
+  zones: [],
+  spawn: { x: 40, y: 90 },
 };
 
-const WALL_HEIGHT = 40;
-const COUNTER_DIAMETER = 24;
-
 // ---------------------------------------------------------------------------
-// Cats
+// Faces
 // ---------------------------------------------------------------------------
-
-// One filled dot, optionally with a notch bitten out of the facing edge.
-function drawDot(ctx, cx, cy, rx, ry, facing) {
-  ctx.fillStyle = DOT;
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  if (!facing) return;
-
-  // The notch is the only cue for direction, so it is required: without it
-  // there is no way to see whether the facing logic is right.
-  const edge = {
-    down:  [cx, cy + ry],
-    up:    [cx, cy - ry],
-    left:  [cx - rx, cy],
-    right: [cx + rx, cy],
-  }[facing];
-
-  ctx.save();
-  ctx.globalCompositeOperation = 'destination-out';
-  ctx.beginPath();
-  ctx.arc(edge[0], edge[1], 1.5, 0, Math.PI * 2); // 3px wide bite
-  ctx.fill();
-  ctx.restore();
-}
-
-function drawCatSheet(index) {
-  const f = SHEET.frame;
+function drawFace(index) {
   const canvas = document.createElement('canvas');
-  canvas.width = f * SHEET.cols;
-  canvas.height = f * SHEET.rows;
+  canvas.width = FACE_SIZE;
+  canvas.height = FACE_SIZE;
   const ctx = canvas.getContext('2d');
 
-  const d = CAT_MIN_DIAMETER + index;      // 17 .. 24
+  const d = FACE_DIAMETER[index];
   const r = d / 2;
-  const sitR = Math.round(d * 0.8) / 2;    // sit/work pose is a touch smaller
+  const cx = FACE_SIZE / 2;
+  const cy = FACE_SIZE / 2;
 
-  // The dot sits in the lower part of the frame, feet near the bottom edge.
-  const baseY = (radius) => f - 4 - radius;
+  ctx.strokeStyle = CHARCOAL;
+  ctx.fillStyle = CHARCOAL;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
 
-  for (const dir of ['down', 'up', 'left', 'right']) {
-    const row = ROW[dir];
-    WALK_FRAMES.forEach((pose, col) => {
-      const cx = col * f + f / 2;
-      const cy = row * f + baseY(r) + pose.bob;
-      drawDot(ctx, cx, cy, r * pose.sx, r * pose.sy, dir);
-    });
-  }
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 1, 0, Math.PI * 2);
+  ctx.stroke();
 
-  // Row 4: one still sit frame per facing, no bob.
-  SIT_ORDER.forEach((dir, col) => {
-    const cx = col * f + f / 2;
-    const cy = ROW.sit * f + baseY(sitR);
-    drawDot(ctx, cx, cy, sitR, sitR, dir);
-  });
+  // Two dots for eyes.
+  const eyeGap = Math.max(4, Math.round(r * 0.55));
+  const eyeY = cy - Math.round(r * 0.18);
+  ctx.beginPath();
+  ctx.arc(cx - eyeGap, eyeY, 1.4, 0, Math.PI * 2);
+  ctx.arc(cx + eyeGap, eyeY, 1.4, 0, Math.PI * 2);
+  ctx.fill();
 
-  // Row 5: sitting at work, facing down, with a small unfilled square in front.
-  // The dot sits 4px higher than the sit pose so the square in front of it still
-  // fits inside the frame.
-  for (let col = 0; col < 2; col++) {
-    const cx = col * f + f / 2;
-    const cy = ROW.work * f + baseY(sitR) - 4;
-    drawDot(ctx, cx, cy, sitR, sitR, 'down');
-
-    const size = 6;
-    const top = cy + sitR + 1 + (col === 1 ? 1 : 0); // 1px shift makes the loop read
-    ctx.strokeStyle = DOT;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(Math.round(cx - size / 2) + 0.5, Math.round(top) + 0.5, size, size);
-  }
+  // One short line for a mouth.
+  const mouth = MOUTH_WIDTH[index];
+  const mouthY = cy + Math.round(r * 0.42);
+  ctx.beginPath();
+  ctx.moveTo(cx - mouth / 2, mouthY);
+  ctx.lineTo(cx + mouth / 2, mouthY);
+  ctx.stroke();
 
   return canvas;
 }
@@ -210,111 +168,181 @@ function drawCatSheet(index) {
 // ---------------------------------------------------------------------------
 // Room
 // ---------------------------------------------------------------------------
+function zonesOfType(room, type) {
+  return (room.zones || []).filter((z) => z.type === type);
+}
 
-function hollowCircle(ctx, cx, cy, r) {
-  ctx.strokeStyle = STROKE;
+function overlapsOrTouches(rect, zone, slack = 2) {
+  return (
+    rect.x <= zone.x + zone.w + slack &&
+    rect.x + rect.w >= zone.x - slack &&
+    rect.y <= zone.y + zone.h + slack &&
+    rect.y + rect.h >= zone.y - slack
+  );
+}
+
+// Furniture is whichever solid sits in or against a zone of that type; anything
+// left over is a wall. That keeps the art following the data instead of
+// repeating the layout in two places.
+function classify(room) {
+  const solids = room.solids || [];
+  const furniture = new Map(); // solid -> zone type
+  for (const solid of solids) {
+    for (const zone of room.zones || []) {
+      if (zone.type === 'table' || zone.type === 'counter' || zone.type === 'bar') {
+        if (overlapsOrTouches(solid, zone)) {
+          furniture.set(solid, zone.type);
+          break;
+        }
+      }
+    }
+  }
+  const walls = solids.filter((s) => !furniture.has(s));
+  return { furniture, walls };
+}
+
+function hollowCircle(ctx, cx, cy, r, color = CHARCOAL) {
+  ctx.strokeStyle = color;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.stroke();
 }
 
-// Counter circles are derived, not authored, so the counter stays a single rect
-// in room.json however many circles end up spanning it.
-function counterCircles(rect) {
-  const d = Math.min(COUNTER_DIAMETER, rect.h);
-  const count = Math.max(1, Math.round(rect.w / (d + 6)));
-  const step = rect.w / count;
+// Evenly spaced circles down the long axis of a rect.
+function spanCircles(rect) {
+  const vertical = rect.h > rect.w;
+  const across = vertical ? rect.w : rect.h;
+  const along = vertical ? rect.h : rect.w;
+  const d = Math.min(across, 26);
+  const count = Math.max(1, Math.round(along / (d + 6)));
+  const step = along / count;
   const out = [];
   for (let i = 0; i < count; i++) {
-    out.push({ cx: rect.x + step * (i + 0.5), cy: rect.y + d / 2 + 2, r: d / 2 });
+    const offset = step * (i + 0.5);
+    out.push({
+      cx: vertical ? rect.x + rect.w / 2 : rect.x + offset,
+      cy: vertical ? rect.y + offset : rect.y + rect.h / 2,
+      r: d / 2 - 1,
+    });
   }
   return out;
 }
 
-function zonesOfType(room, type) {
-  return (room.zones || []).filter((z) => z.type === type);
-}
-
 function drawRoomBg(room, canvas) {
   const ctx = canvas.getContext('2d');
+  const { furniture, walls } = classify(room);
+
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = FLOOR;
+  ctx.fillStyle = CREAM;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = WALL;
-  ctx.fillRect(0, 0, canvas.width, WALL_HEIGHT);
 
-  // Every table is one circle inscribed in its rect.
-  for (const z of zonesOfType(room, 'table')) {
-    hollowCircle(ctx, z.x + z.w / 2, z.y + z.h / 2, Math.min(z.w, z.h) / 2 - 1);
+  // The garden reads as a slightly different cream, so the two rooms are
+  // legible as two rooms without a fourth colour.
+  const divider = walls.find((w) => w.h > w.w && w.x > 100 && w.x < canvas.width - 100);
+  if (divider) {
+    ctx.fillStyle = CREAM_SHADE;
+    ctx.fillRect(divider.x + divider.w, 0, canvas.width - divider.x - divider.w, canvas.height);
   }
-  for (const z of zonesOfType(room, 'counter')) {
-    for (const c of counterCircles(z)) hollowCircle(ctx, c.cx, c.cy, c.r - 1);
+
+  for (const wall of walls) {
+    ctx.fillStyle = CHARCOAL;
+    ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
   }
+
+  // Red on the floor either side of the gap in the dividing wall: the doorway.
+  if (divider) {
+    const gaps = walls.filter((w) => w.x === divider.x && w.w === divider.w).sort((a, b) => a.y - b.y);
+    for (let i = 0; i < gaps.length - 1; i++) {
+      const top = gaps[i].y + gaps[i].h;
+      const bottom = gaps[i + 1].y;
+      ctx.fillStyle = RED;
+      ctx.fillRect(divider.x - 3, top, 3, 4);
+      ctx.fillRect(divider.x - 3, bottom - 4, 3, 4);
+      ctx.fillRect(divider.x + divider.w, top, 3, 4);
+      ctx.fillRect(divider.x + divider.w, bottom - 4, 3, 4);
+    }
+  }
+
+  for (const [solid, type] of furniture) {
+    if (type === 'table') {
+      hollowCircle(ctx, solid.x + solid.w / 2, solid.y + solid.h / 2, Math.min(solid.w, solid.h) / 2 - 1);
+    } else if (type === 'counter') {
+      for (const c of spanCircles(solid)) hollowCircle(ctx, c.cx, c.cy, c.r);
+    } else if (type === 'bar') {
+      // The rail is one solid charcoal run. It lives here and never occludes.
+      ctx.fillStyle = CHARCOAL;
+      ctx.fillRect(solid.x, solid.y, solid.w, solid.h);
+    }
+  }
+
+  // Stools, drawn where the seats actually are.
+  for (const zone of zonesOfType(room, 'bar')) {
+    for (const seat of zone.seats || []) hollowCircle(ctx, seat.x, seat.y, 5);
+  }
+
+  // The jukebox: a charcoal box against the wall beside its zone, with a red
+  // front so it reads as the one landmark in the lounge.
+  for (const zone of zonesOfType(room, 'jukebox')) {
+    const x = zone.x + zone.w;
+    ctx.fillStyle = CHARCOAL;
+    ctx.fillRect(x, zone.y, 20, zone.h);
+    ctx.fillStyle = RED;
+    ctx.fillRect(x + 3, zone.y + 4, 14, 10);
+  }
+
   return canvas;
 }
 
 function drawRoomFg(room, canvas) {
   const ctx = canvas.getContext('2d');
+  const { furniture } = classify(room);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // A table's back half goes in the foreground so that a cat standing behind the
-  // table is drawn behind it. The front half stays in the background, where a
-  // cat standing in front covers it. Sprites draw between the two layers.
-  for (const z of zonesOfType(room, 'table')) {
-    ctx.strokeStyle = STROKE;
+  // Only what should cover a face standing behind it: the back half of each
+  // table. The bar rail is deliberately not here — nothing passes behind it.
+  for (const [solid, type] of furniture) {
+    if (type !== 'table') continue;
+    ctx.strokeStyle = CHARCOAL;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(z.x + z.w / 2, z.y + z.h / 2, Math.min(z.w, z.h) / 2 - 1, Math.PI, Math.PI * 2);
+    ctx.arc(solid.x + solid.w / 2, solid.y + solid.h / 2, Math.min(solid.w, solid.h) / 2 - 1, Math.PI, Math.PI * 2);
     ctx.stroke();
   }
 
-  // Only the front edge of the counter, which should occlude a cat standing
-  // behind it no matter how the y-sort falls.
-  for (const z of zonesOfType(room, 'counter')) {
-    for (const c of counterCircles(z)) {
-      ctx.strokeStyle = STROKE;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(c.cx, c.cy, c.r - 1, 0, Math.PI); // lower half only
-      ctx.stroke();
-    }
-  }
   return canvas;
 }
 
 // ---------------------------------------------------------------------------
 // Page wiring
 // ---------------------------------------------------------------------------
-
 const bgCanvas = document.getElementById('bg');
 const fgCanvas = document.getElementById('fg');
-const catsHost = document.getElementById('cats');
+const facesHost = document.getElementById('faces');
 const statusEl = document.getElementById('status');
 const roomText = document.getElementById('roomjson');
 
-let catCanvases = [];
+let faceCanvases = [];
 
-function catName(i) {
-  return 'cat-' + String(i + 1).padStart(2, '0') + '.png';
+function faceName(i) {
+  return 'face-' + String(i + 1).padStart(2, '0') + '.png';
 }
 
-function buildCats() {
-  catsHost.innerHTML = '';
-  catCanvases = [];
-  for (let i = 0; i < CAT_COUNT; i++) {
-    const canvas = drawCatSheet(i);
-    catCanvases.push(canvas);
+function buildFaces() {
+  facesHost.innerHTML = '';
+  faceCanvases = [];
+  for (let i = 0; i < FACE_COUNT; i++) {
+    const canvas = drawFace(i);
+    faceCanvases.push(canvas);
     const tile = document.createElement('div');
     tile.className = 'tile';
-    canvas.style.width = canvas.width * 2 + 'px';
-    canvas.style.height = canvas.height * 2 + 'px';
+    canvas.style.width = FACE_SIZE * 3 + 'px';
+    canvas.style.height = FACE_SIZE * 3 + 'px';
     tile.appendChild(canvas);
     const label = document.createElement('div');
-    label.textContent = catName(i) + ' · ' + (CAT_MIN_DIAMETER + i) + 'px';
+    label.textContent = faceName(i) + ' · ' + FACE_DIAMETER[i] + 'px';
     tile.appendChild(label);
-    catsHost.appendChild(tile);
+    facesHost.appendChild(tile);
   }
 }
 
@@ -323,15 +351,11 @@ function drawRoom(room) {
   drawRoomFg(room, fgCanvas);
 }
 
-function setStatus(text) {
-  statusEl.textContent = text;
-}
-
 function currentRoom() {
   try {
     return JSON.parse(roomText.value);
   } catch (err) {
-    setStatus('Room JSON did not parse: ' + err.message);
+    statusEl.textContent = 'Room JSON did not parse: ' + err.message;
     return null;
   }
 }
@@ -347,7 +371,7 @@ document.getElementById('redraw').addEventListener('click', () => {
   const room = currentRoom();
   if (!room) return;
   drawRoom(room);
-  setStatus('Redrawn from the text area.');
+  statusEl.textContent = 'Redrawn from the text area.';
 });
 
 document.getElementById('reload').addEventListener('click', loadRoom);
@@ -357,27 +381,27 @@ document.getElementById('dl-room').addEventListener('click', () => {
   download(fgCanvas, 'room-fg.png');
 });
 
-document.getElementById('dl-cats').addEventListener('click', () => {
-  catCanvases.forEach((canvas, i) => download(canvas, catName(i)));
+document.getElementById('dl-faces').addEventListener('click', () => {
+  faceCanvases.forEach((canvas, i) => download(canvas, faceName(i)));
 });
 
 document.getElementById('dl-all').addEventListener('click', () => {
   download(bgCanvas, 'room-bg.png');
   download(fgCanvas, 'room-fg.png');
-  catCanvases.forEach((canvas, i) => download(canvas, catName(i)));
+  faceCanvases.forEach((canvas, i) => download(canvas, faceName(i)));
 });
 
 async function loadRoom() {
   let room = DEFAULT_ROOM;
   try {
-    // Works when served over HTTP. Opened from disk this throws, and the
-    // built-in layout below is used instead.
+    // Works when served. Opened from disk this throws, and the built-in layout
+    // below is used instead.
     const res = await fetch('../data/room.json', { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     room = await res.json();
-    setStatus('Loaded ../data/room.json');
+    statusEl.textContent = 'Loaded ../data/room.json';
   } catch (err) {
-    setStatus('Using the built-in layout (' + err.message + '). Paste room.json below to match your room.');
+    statusEl.textContent = 'Using the built-in layout (' + err.message + '). Paste room.json below to match your room.';
   }
   roomText.value = JSON.stringify(room, null, 2);
   drawRoom(room);
@@ -385,9 +409,9 @@ async function loadRoom() {
 
 // Exposed so the assets can also be generated headlessly, which is how the
 // committed PNGs were made.
-window.CafePlaceholders = { drawCatSheet, drawRoomBg, drawRoomFg, catName, CAT_COUNT };
+window.CafePlaceholders = { drawFace, drawRoomBg, drawRoomFg, faceName, FACE_COUNT };
 
-buildCats();
+buildFaces();
 loadRoom();
 </script>
 </body>

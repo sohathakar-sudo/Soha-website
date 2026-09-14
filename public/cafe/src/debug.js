@@ -8,7 +8,13 @@ const PLACING = {
   Digit1: { kind: 'solid' },
   Digit2: { kind: 'zone', type: 'table' },
   Digit3: { kind: 'zone', type: 'counter' },
+  Digit4: { kind: 'zone', type: 'bar' },
+  Digit5: { kind: 'zone', type: 'jukebox' },
 };
+
+// Zone types that hold seats.
+const SEATING = ['table', 'bar'];
+const SEAT_GRAB = 4; // click within this many pixels to remove a seat
 
 const COLORS = {
   solidFill: 'rgba(255, 64, 64, 0.22)',
@@ -40,7 +46,7 @@ function onHandle(rect, x, y) {
 
 // The editor owns its own listeners and its own state. The game neither knows
 // nor cares that it exists; it only calls toggle() and draw().
-export function createDebugEditor({ canvas, room, loop, players, localId }) {
+export function createDebugEditor({ canvas, room, loop, players, localId, reloadArt }) {
   const bar = document.getElementById('debug-bar');
   const copyButton = document.getElementById('debug-copy');
   const copyNote = document.getElementById('debug-note');
@@ -77,9 +83,12 @@ export function createDebugEditor({ canvas, room, loop, players, localId }) {
     event.preventDefault();
     const { x, y } = toNative(event);
 
-    // Shift-click plants the seat of the selected table zone.
-    if (event.shiftKey && selected && selected.item.type === 'table') {
-      selected.item.seat = { x, y };
+    // Shift-click adds a seat to the selected zone, or removes one you hit.
+    if (event.shiftKey && selected && SEATING.includes(selected.item.type)) {
+      const seats = selected.item.seats || (selected.item.seats = []);
+      const hitIndex = seats.findIndex((s) => Math.abs(s.x - x) <= SEAT_GRAB && Math.abs(s.y - y) <= SEAT_GRAB);
+      if (hitIndex >= 0) seats.splice(hitIndex, 1);
+      else seats.push({ x, y });
       return;
     }
 
@@ -104,7 +113,7 @@ export function createDebugEditor({ canvas, room, loop, players, localId }) {
     const item = placing.kind === 'solid'
       ? { x, y, w: 0, h: 0 }
       : { type: placing.type, x, y, w: 0, h: 0 };
-    if (placing.type === 'table') item.seat = { x, y };
+    if (SEATING.includes(placing.type)) item.seats = [];
     const list = placing.kind === 'solid' ? room.solids : room.zones;
     list.push(item);
     selected = { list, item };
@@ -159,6 +168,12 @@ export function createDebugEditor({ canvas, room, loop, players, localId }) {
       if (selected) remove(selected);
       event.preventDefault();
       return;
+    }
+
+    // Reload the room art without losing where anyone is standing.
+    if (event.code === 'KeyR') {
+      if (reloadArt) reloadArt().then(() => note('Room art reloaded')).catch(() => note('Room art failed to reload'));
+      event.preventDefault();
     }
 
   }
@@ -234,11 +249,8 @@ export function createDebugEditor({ canvas, room, loop, players, localId }) {
 
       for (const zone of room.zones) {
         drawRect(ctx, zone, COLORS.zoneFill, COLORS.zoneLine);
-        if (!zone.seat) continue;
-
-        const { x, y } = zone.seat;
         ctx.fillStyle = COLORS.seat;
-        ctx.fillRect(x - 1, y - 1, 3, 3);
+        for (const seat of zone.seats || []) ctx.fillRect(seat.x - 1, seat.y - 1, 3, 3);
       }
 
       if (selected) {
@@ -254,8 +266,10 @@ export function createDebugEditor({ canvas, room, loop, players, localId }) {
       label(ctx, `fps ${loop.stats.fps}  ${Math.round(me.x)},${Math.round(me.y)}  ${me.state}`, 4, 4);
 
       const what = placing.kind === 'solid' ? 'solid' : placing.type + ' zone';
-      label(ctx, `placing ${what}`, VIEW.width - 4, 4, 'right');
-      label(ctx, '1 solid  2 table  3 counter  shift-click seat  del remove', VIEW.width / 2, VIEW.height - 10, 'center');
+      const seats = selected && selected.item.seats ? `  ${selected.item.seats.length} seats` : '';
+      label(ctx, `placing ${what}${seats}`, VIEW.width - 4, 4, 'right');
+      label(ctx, '1 solid 2 table 3 counter 4 bar 5 jukebox · shift-click seat · R reload art · del remove',
+        VIEW.width / 2, VIEW.height - 10, 'center');
     },
   };
 }

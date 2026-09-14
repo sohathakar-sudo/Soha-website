@@ -62,16 +62,37 @@ export function applyMovement(player, input, dt, collision) {
   return { x, y };
 }
 
+// Seating zones hold a list of seats; you get the nearest one nobody is on.
+const SEATING = ['table', 'bar'];
+
+function nearestFreeSeat(zone, x, y, taken) {
+  let best = null;
+  let bestDistance = Infinity;
+
+  for (const seat of zone.seats || []) {
+    if (taken.some((t) => t.x === seat.x && t.y === seat.y)) continue;
+    const distance = (seat.x - x) ** 2 + (seat.y - y) ** 2;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = seat;
+    }
+  }
+
+  return best;
+}
+
 // Pure, like applyMovement: state in, state out. Returns the fields the
 // interaction touches, so the caller can assign them onto the player.
 //
 // Transitions:
-//   walking + Enter in a table zone   -> sitting, snapped to the seat
-//   sitting + any movement            -> walking, released from the seat
-//   walking + Enter in a counter zone -> a coffee
+//   walking + Enter in a table or bar zone -> sitting at the nearest free seat
+//                                             (nothing happens if it is full)
+//   sitting + any movement                 -> walking, released from the seat
+//   walking + Enter in a counter zone      -> a coffee
 //
 // input.interact is already edge-triggered by the time it arrives here.
-export function applyInteraction(player, input, room) {
+// `taken` is the list of seat positions other players are already on.
+export function applyInteraction(player, input, room, taken = []) {
   let { state, x, y, holdingCoffee, coffees } = player;
 
   const moving = input.left || input.right || input.up || input.down;
@@ -81,14 +102,20 @@ export function applyInteraction(player, input, room) {
     state = 'walking';
   } else if (input.interact && state !== 'sitting' && room) {
     const zone = room.zoneAt(x, y);
-    if (zone && zone.type === 'table' && zone.seat) {
-      state = 'sitting';
-      x = zone.seat.x;
-      y = zone.seat.y;
+
+    if (zone && SEATING.includes(zone.type)) {
+      const seat = nearestFreeSeat(zone, x, y, taken);
+      if (seat) {
+        state = 'sitting';
+        x = seat.x;
+        y = seat.y;
+      }
     } else if (zone && zone.type === 'counter') {
       holdingCoffee = true;
       coffees += 1;
     }
+    // The jukebox zone is recognised by room.json already; it gets its
+    // behaviour in the music phase.
   }
 
   return { state, x, y, holdingCoffee, coffees };

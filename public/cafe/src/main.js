@@ -108,12 +108,23 @@ function inputFor(player, localInput) {
   return player.id === LOCAL_ID ? localInput : ZERO_INPUT;
 }
 
+// Where everyone else is already sitting, so nobody lands on an occupied seat.
+function takenSeats(player) {
+  const taken = [];
+  for (const other of players.values()) {
+    if (other.id !== player.id && other.state === 'sitting') {
+      taken.push({ x: other.x, y: other.y });
+    }
+  }
+  return taken;
+}
+
 // One player, one tick. Identical for everyone in the map: whether the input
 // came from this keyboard or from a snapshot makes no difference here.
 function stepPlayer(player, input, dt) {
   // Interactions first: they can stand a seated player up in time for the
   // same tick's movement.
-  Object.assign(player, applyInteraction(player, input, room));
+  Object.assign(player, applyInteraction(player, input, room, takenSeats(player)));
 
   if (!isSeated(player)) {
     const moved = applyMovement(player, input, dt, room);
@@ -148,7 +159,9 @@ function promptFor(player) {
   if (isSeated(player)) return '';
   const zone = room ? room.zoneAt(player.x, player.y) : null;
   if (!zone) return '';
-  return zone.type === 'counter' ? 'ENTER  coffee' : 'ENTER  sit';
+  if (zone.type === 'counter') return 'ENTER  coffee';
+  if (zone.type === 'jukebox') return '';
+  return zone.seats && zone.seats.length ? 'ENTER  sit' : '';
 }
 
 function render() {
@@ -197,6 +210,17 @@ let room = null;
 let editor = null;
 const art = { bg: null, fg: null };
 
+// Re-fetch the room PNGs past the cache, leaving every player where they stand.
+async function reloadArt() {
+  const bust = '?t=' + Date.now();
+  const [bg, fg] = await Promise.all([
+    loadImage(PATHS.assets + 'room-bg.png' + bust),
+    loadImage(PATHS.assets + 'room-fg.png' + bust),
+  ]);
+  art.bg = bg;
+  art.fg = fg;
+}
+
 async function boot() {
   const [loadedRoom, bg, fg] = await Promise.all([
     loadRoom(),
@@ -224,7 +248,7 @@ async function boot() {
   addPlayer(me);
 
   attachInput();
-  editor = createDebugEditor({ canvas, room, loop, players, localId: LOCAL_ID });
+  editor = createDebugEditor({ canvas, room, loop, players, localId: LOCAL_ID, reloadArt });
   net.connect();
   loop.start();
 
