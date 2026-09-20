@@ -177,8 +177,8 @@ editor that exports room.json.
 | ⬜ 6 Title + cleanup | multiplayer audit, README (the face picker and the `catId` → `faceId` migration landed early, in phase 3, since the title screen had to keep working) |
 | ⬜ 7 Jukebox | zone exists, no behaviour |
 
-**Five hand-drawn faces are in**, bobbing as they walk. Three more to come;
-`FACE_COUNT` in config.js is the only thing to change when they land.
+**All eight hand-drawn faces are in**, bobbing as they walk. No placeholder art
+remains for the people; only the room is still generated.
 
 **Current room:** imported from a Figma drawing. Lounge with four tables — one
 long one across the top — an L-shaped coffee counter, jukebox by the entrance,
