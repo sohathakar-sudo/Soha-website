@@ -1,8 +1,8 @@
-import { VIEW, PATHS } from './config.js';
+import { VIEW, PATHS, PLAYER } from './config.js';
 import { createLoop } from './loop.js';
 import { attachInput, readInput, consumePress } from './input.js';
 import { createPlayer, applyMovement, applyInteraction, isSeated } from './player.js';
-import { loadFaces, loadImage, createRenderState } from './faces.js';
+import { loadFaces, loadImage, createRenderState, advanceBob } from './faces.js';
 import { drawBackground, drawForeground, drawPlayers } from './render.js';
 import { loadRoom } from './room.js';
 import { showTitle, drawHud } from './ui.js';
@@ -117,6 +117,10 @@ function stepPlayer(player, input, dt) {
     player.y = moved.y;
     player.state = 'walking';
   }
+
+  // Render state last, so it reacts to where the player actually ended up.
+  // A step longer than one tick's walk is a teleport, not a stride.
+  advanceBob(renderStates.get(player.id), player, dt, PLAYER.speed * dt * 2);
 }
 
 // --- Loop ------------------------------------------------------------------

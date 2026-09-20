@@ -26,7 +26,12 @@ export const PLAYER = {
 export const FACE = {
   size: 32,       // the PNG, drawn 1:1
   hover: 14,      // face centre above the ground point
-  bobAmount: 2,   // peak of the walk bob; the bob itself lands next phase
+
+  // The bob is driven by distance walked, not by the clock, so it cannot drift
+  // out of step with speed however fast anyone moves.
+  bobAmount: 2,        // peak height, in pixels
+  bobPeriodPx: 18,     // pixels of travel per complete up-and-down
+  settleSeconds: 0.2,  // how long the bob takes to fade in and out
   shadow: {
     w: 16,
     h: 5,

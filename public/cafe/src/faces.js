@@ -34,9 +34,56 @@ export function faceImage(faceId) {
 }
 
 // Render state, kept apart from the player itself, and created lazily so a
-// player appearing mid-session gets one. The bob lands in the next phase.
+// player appearing mid-session gets one. None of this belongs to the room and
+// none of it travels over the wire.
 export function createRenderState() {
-  return { bob: 0 };
+  return {
+    bob: 0,        // current vertical offset
+    phase: 0,      // where we are in the up-and-down, in radians
+    amplitude: 0,  // 0 settled, 1 fully bobbing
+    lastX: null,
+    lastY: null,
+  };
+}
+
+const TWO_PI = Math.PI * 2;
+
+// Called once per tick per player. Everything it needs it reads off the player's
+// position, so it works the same for someone driven by this keyboard and someone
+// arriving through a snapshot.
+export function advanceBob(renderState, player, dt, maxStep = Infinity) {
+  const previousX = renderState.lastX ?? player.x;
+  const previousY = renderState.lastY ?? player.y;
+  let distance = Math.hypot(player.x - previousX, player.y - previousY);
+  renderState.lastX = player.x;
+  renderState.lastY = player.y;
+
+  // Snapping onto a seat, or a snapshot correcting a position, is a jump rather
+  // than a stride. Cap it so it cannot fling the bob forward.
+  if (distance > maxStep) distance = 0;
+
+  const walking = player.state !== 'sitting' && distance > 0.001;
+
+  // Phase advances per pixel travelled: walk slower and the bob slows with you.
+  if (walking) {
+    renderState.phase = (renderState.phase + (distance / FACE.bobPeriodPx) * TWO_PI) % TWO_PI;
+  }
+
+  // Fade in and out rather than snapping, so stopping settles instead of jolting.
+  const target = walking ? 1 : 0;
+  const step = dt / Math.max(0.001, FACE.settleSeconds);
+  if (renderState.amplitude < target) {
+    renderState.amplitude = Math.min(target, renderState.amplitude + step);
+  } else if (renderState.amplitude > target) {
+    renderState.amplitude = Math.max(target, renderState.amplitude - step);
+  }
+
+  // Seated is seated: perfectly still, no residue.
+  if (player.state === 'sitting' && renderState.amplitude === 0) {
+    renderState.phase = 0;
+  }
+
+  renderState.bob = Math.sin(renderState.phase) * FACE.bobAmount * renderState.amplitude;
 }
 
 // A person is drawn in two pieces: the shadow on the floor, then the face

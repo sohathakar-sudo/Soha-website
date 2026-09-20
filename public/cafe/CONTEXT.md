@@ -172,13 +172,13 @@ editor that exports room.json.
 | ✅ 1 Strip | removed the `working` state, seat `facing`, sprite-sheet animation, every facing-dependent render path |
 | ✅ 2 Placeholders | room moved to 640 × 360, generator rewritten in the palette, eight placeholder faces |
 | ✅ 3 Draw | `src/faces.js` — eight faces loaded once and indexed by `faceId`, shadow then face at the ground point, y-sorted; cat sheets deleted |
-| ⬜ 4 Bob | distance-driven so it can't desync from speed, settles over ~200ms, still when sitting |
-| ⬜ 5 Prep tool | `tools/prep-faces.html` |
+| ✅ 4 Bob | distance-driven so it cannot desync from speed, settles over ~200ms, still when sitting |
+| ✅ 5 Prep tool | `tools/prep-faces.html` — trims, fits and centres any drawing to 32x32 |
 | ⬜ 6 Title + cleanup | multiplayer audit, README (the face picker and the `catId` → `faceId` migration landed early, in phase 3, since the title screen had to keep working) |
 | ⬜ 7 Jukebox | zone exists, no behaviour |
 
-**Faces are on screen.** They are still the crude placeholders — a circle, two
-dots, a mouth — and they do not bob yet.
+**Five hand-drawn faces are in**, bobbing as they walk. Three more to come;
+`FACE_COUNT` in config.js is the only thing to change when they land.
 
 **Current room:** imported from a Figma drawing. Lounge with four tables — one
 long one across the top — an L-shaped coffee counter, jukebox by the entrance,
