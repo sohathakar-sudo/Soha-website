@@ -38,8 +38,9 @@ export const FACE = {
   },
 };
 
-// Eight faces, one 32x32 PNG each, indexed by faceId 1-8.
-export const FACE_COUNT = 8;
+// One 32x32 PNG per face, indexed by faceId. Raise this the moment more
+// drawings land in assets/ — nothing else needs to change.
+export const FACE_COUNT = 5;
 
 export function faceFile(faceId) {
   return 'face-' + String(faceId).padStart(2, '0') + '.png';
