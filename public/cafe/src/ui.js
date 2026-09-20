@@ -1,8 +1,9 @@
-import { CATS, VIEW, PLAYER } from './config.js';
-import { loadCatSheet } from './sprites.js';
+import { VIEW, FACE, FACE_COUNT } from './config.js';
+import { faceImage } from './faces.js';
 
 const NAME_KEY = 'cafe:name';
-const CAT_KEY = 'cafe:cat';
+const FACE_KEY = 'cafe:face';
+const LEGACY_FACE_KEY = 'cafe:cat';  // saves from before the faces
 const MAX_NAME = 16;
 
 function read(key, fallback) {
@@ -21,6 +22,19 @@ function write(key, value) {
   }
 }
 
+// Reads the saved face, migrating a pre-faces save rather than throwing it away
+// or throwing at it.
+export function readFaceId() {
+  const saved = Number(read(FACE_KEY, ''));
+  if (Number.isInteger(saved) && saved >= 1 && saved <= FACE_COUNT) return saved;
+
+  const legacy = read(LEGACY_FACE_KEY, '');       // e.g. 'cat-03'
+  const fromLegacy = Number(String(legacy).replace(/[^0-9]/g, ''));
+  if (Number.isInteger(fromLegacy) && fromLegacy >= 1 && fromLegacy <= FACE_COUNT) return fromLegacy;
+
+  return 1;
+}
+
 export function cleanName(raw) {
   const trimmed = (raw || '').trim().slice(0, MAX_NAME);
   return trimmed || 'guest';
@@ -34,39 +48,37 @@ export function showTitle() {
   const picker = document.getElementById('title-cats');
   const playButton = document.getElementById('title-play');
 
-  let catId = read(CAT_KEY, CATS[0]);
-  if (!CATS.includes(catId)) catId = CATS[0];
+  let faceId = readFaceId();
   nameInput.value = read(NAME_KEY, '');
   nameInput.maxLength = MAX_NAME;
 
-  // One clickable sprite per cat, drawn from the sheet the game itself uses.
+  // One clickable thumbnail per face, drawn from the very images the game uses.
   picker.innerHTML = '';
   const buttons = new Map();
 
-  for (const id of CATS) {
+  for (let id = 1; id <= FACE_COUNT; id++) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'cat-choice';
-    button.id = 'pick-' + id;
-    button.setAttribute('aria-label', id);
-    button.setAttribute('aria-pressed', String(id === catId));
+    button.id = 'pick-face-' + id;
+    button.setAttribute('aria-label', 'Face ' + id);
+    button.setAttribute('aria-pressed', String(id === faceId));
 
     const canvas = document.createElement('canvas');
-    canvas.width = PLAYER.sprite.w;
-    canvas.height = PLAYER.sprite.h;
+    canvas.width = FACE.size;
+    canvas.height = FACE.size;
+    const image = faceImage(id);
+    if (image) {
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(image, 0, 0);
+    } else {
+      button.textContent = String(id);
+    }
     button.appendChild(canvas);
 
-    loadCatSheet(id)
-      .then((sheet) => {
-        const ctx = canvas.getContext('2d');
-        ctx.imageSmoothingEnabled = false;
-        // The first 32x32 frame of the sheet; faces replace this next phase.
-        ctx.drawImage(sheet, 0, 0, PLAYER.sprite.w, PLAYER.sprite.h, 0, 0, PLAYER.sprite.w, PLAYER.sprite.h);
-      })
-      .catch(() => { button.textContent = id; });
-
     button.addEventListener('click', () => {
-      catId = id;
+      faceId = id;
       for (const [otherId, otherButton] of buttons) {
         otherButton.setAttribute('aria-pressed', String(otherId === id));
       }
@@ -84,10 +96,10 @@ export function showTitle() {
     function play() {
       const name = cleanName(nameInput.value);
       write(NAME_KEY, name);
-      write(CAT_KEY, catId);
+      write(FACE_KEY, String(faceId));
       screen.hidden = true;
       cleanup();
-      resolve({ name, catId });
+      resolve({ name, faceId });
     }
 
     function onKey(e) {

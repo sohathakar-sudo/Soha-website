@@ -2,7 +2,7 @@ import { VIEW, PATHS } from './config.js';
 import { createLoop } from './loop.js';
 import { attachInput, readInput, consumePress } from './input.js';
 import { createPlayer, applyMovement, applyInteraction, isSeated } from './player.js';
-import { loadCatSheet, loadImage, createRenderState } from './sprites.js';
+import { loadFaces, loadImage, createRenderState } from './faces.js';
 import { drawBackground, drawForeground, drawPlayers } from './render.js';
 import { loadRoom } from './room.js';
 import { showTitle, drawHud } from './ui.js';
@@ -48,31 +48,16 @@ const players = new Map();
 // the room and never travel over the wire.
 const renderStates = new Map();
 
-const sheets = new Map();
+// Faces are loaded once at boot and indexed by faceId, never per player.
 
 function removePlayer(id) {
   players.delete(id);
   renderStates.delete(id);
 }
 
-// Any player can arrive wearing a cat nobody has loaded yet, and a player can
-// change cats between snapshots, so this runs on every update rather than only
-// when someone joins.
-function ensureSheet(catId) {
-  if (sheets.has(catId)) return;
-  sheets.set(catId, null); // claim it, so a slow load is not started twice
-  loadCatSheet(catId)
-    .then((img) => sheets.set(catId, img))
-    .catch((err) => {
-      sheets.delete(catId);
-      console.error(err);
-    });
-}
-
 function addPlayer(player) {
   players.set(player.id, player);
   renderStates.set(player.id, createRenderState());
-  ensureSheet(player.catId);
   return player;
 }
 
@@ -167,7 +152,7 @@ function promptFor(player) {
 function render() {
   ctx.imageSmoothingEnabled = false;
   drawBackground(ctx, art.bg);
-  drawPlayers(ctx, players, renderStates, sheets);
+  drawPlayers(ctx, players, renderStates);
   drawForeground(ctx, art.fg);
 
   const me = players.get(LOCAL_ID);
@@ -190,12 +175,8 @@ net.onSnapshot((snapshot) => {
   for (const incoming of snapshot.players || []) {
     seen.add(incoming.id);
     const existing = players.get(incoming.id);
-    if (existing) {
-      Object.assign(existing, incoming);
-      ensureSheet(existing.catId);
-    } else {
-      addPlayer(createPlayer(incoming));
-    }
+    if (existing) Object.assign(existing, incoming);
+    else addPlayer(createPlayer(incoming));
   }
 
   for (const id of [...players.keys()]) {
@@ -226,6 +207,7 @@ async function boot() {
     loadRoom(),
     loadImage(PATHS.assets + 'room-bg.png').catch(() => null),
     loadImage(PATHS.assets + 'room-fg.png').catch(() => null),
+    loadFaces(),
   ]);
 
   room = loadedRoom;
@@ -238,7 +220,7 @@ async function boot() {
   const me = createPlayer({
     id: LOCAL_ID,
     name: choice.name,
-    catId: choice.catId,
+    faceId: choice.faceId,
     x: room.spawn.x,
     y: room.spawn.y,
   });

@@ -3,7 +3,7 @@
 Paste-into-a-Claude-Project brief. Everything a fresh session needs to be useful
 without re-deriving decisions or re-litigating settled ones.
 
-Last updated: 14 September 2026.
+Last updated: 20 September 2026.
 
 ---
 
@@ -171,14 +171,14 @@ editor that exports room.json.
 |---|---|
 | ✅ 1 Strip | removed the `working` state, seat `facing`, sprite-sheet animation, every facing-dependent render path |
 | ✅ 2 Placeholders | room moved to 640 × 360, generator rewritten in the palette, eight placeholder faces |
-| ⬜ 3 Draw | `src/faces.js` — load the eight, shadow then face at the ground point, y-sort |
+| ✅ 3 Draw | `src/faces.js` — eight faces loaded once and indexed by `faceId`, shadow then face at the ground point, y-sorted; cat sheets deleted |
 | ⬜ 4 Bob | distance-driven so it can't desync from speed, settles over ~200ms, still when sitting |
 | ⬜ 5 Prep tool | `tools/prep-faces.html` |
-| ⬜ 6 Title + cleanup | face picker, `catId` → `faceId` migration, multiplayer audit, README |
+| ⬜ 6 Title + cleanup | multiplayer audit, README (the face picker and the `catId` → `faceId` migration landed early, in phase 3, since the title screen had to keep working) |
 | ⬜ 7 Jukebox | zone exists, no behaviour |
 
-**Players still draw as the old black cat dots.** That's phase 3's job, and the
-cat PNGs get deleted with it.
+**Faces are on screen.** They are still the crude placeholders — a circle, two
+dots, a mouth — and they do not bob yet.
 
 **Current room:** imported from a Figma drawing. Lounge with four tables — one
 long one across the top — an L-shaped coffee counter, jukebox by the entrance,

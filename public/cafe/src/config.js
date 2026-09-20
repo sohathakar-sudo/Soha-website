@@ -20,8 +20,22 @@ export const PLAYER = {
   // (x, y) is the ground point: the spot on the floor the player occupies.
   // Collision, y-sorting and seat snapping all use it.
   hitbox: { w: 16, h: 8 },
-  sprite: { w: 32, h: 32 },
-  anchor: { x: 16, y: 28 },
+};
+
+// How a person is drawn. Every number the faces need lives here.
+export const FACE = {
+  size: 32,       // the PNG, drawn 1:1
+  hover: 14,      // face centre above the ground point
+  bobAmount: 2,   // peak of the walk bob; the bob itself lands next phase
+  shadow: {
+    w: 16,
+    h: 5,
+    // Warm dark, never pure black: black on cream reads as a hole.
+    color: '#3c2c20',
+    alpha: 0.28,
+    shrink: 0.25,  // how much the shadow tightens at the top of the bob
+    fade: 0.35,    // and how much it fades
+  },
 };
 
 // Eight faces, one 32x32 PNG each, indexed by faceId 1-8.
@@ -40,8 +54,6 @@ export const PALETTE = {
   red: '#c2493d',
   shadow: 'rgba(60, 44, 32, 0.28)',
 };
-
-export const CATS = ['cat-01', 'cat-02', 'cat-03', 'cat-04', 'cat-05', 'cat-06', 'cat-07', 'cat-08'];
 
 export const PATHS = {
   assets: './assets/',

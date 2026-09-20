@@ -2,11 +2,11 @@ import { PLAYER } from './config.js';
 
 // A Player is plain data: no methods, no DOM, no canvas. It serializes as-is,
 // which is what lets the same object come off the wire later.
-export function createPlayer({ id, name = 'guest', catId = 'cat-01', x = 0, y = 0 }) {
+export function createPlayer({ id, name = 'guest', faceId = 1, x = 0, y = 0 }) {
   return {
     id,
     name,
-    catId,
+    faceId,
     x,
     y,
     state: 'walking',     // walking | sitting
