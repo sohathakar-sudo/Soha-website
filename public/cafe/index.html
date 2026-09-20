@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Cat Café</title>
+<title>The Café</title>
 <link rel="icon" href="data:," />
 <style>
   html, body {
@@ -67,17 +67,19 @@
     border-radius: 4px;
   }
   #title-cats { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 100%; }
-  .cat-choice {
+  .face-choice {
     padding: 4px;
-    background: #8f8f95;
+    /* The same cream they stand on in the room, so the line art reads here
+       exactly as it does in the game. */
+    background: #f0e6d6;
     border: 2px solid transparent;
     border-radius: 4px;
     cursor: pointer;
     line-height: 0;
   }
-  .cat-choice canvas { width: 48px; height: 48px; image-rendering: pixelated; }
-  .cat-choice[aria-pressed="true"] { border-color: #c98a4b; }
-  .cat-choice:hover { border-color: #e8e8ec; }
+  .face-choice canvas { width: 64px; height: 64px; image-rendering: pixelated; }
+  .face-choice[aria-pressed="true"] { border-color: #c2493d; }
+  .face-choice:hover { border-color: #33302c; }
   #title-play {
     font: inherit;
     font-size: 15px;
@@ -165,14 +167,14 @@
   <div id="stage"><canvas id="game"></canvas></div>
 
   <div id="title" hidden>
-    <h1>Cat Café</h1>
-    <p>WASD or arrows to walk · Enter to sit, work and buy coffee</p>
+    <h1>The Café</h1>
+    <p>WASD or arrows to walk · Enter to sit and buy coffee</p>
     <div class="field">
       <label for="title-name">Your name</label>
       <input id="title-name" type="text" maxlength="16" autocomplete="off" spellcheck="false" placeholder="guest" />
     </div>
     <div class="field">
-      <label id="cats-label">Pick a cat</label>
+      <label id="cats-label">Pick a face</label>
       <div id="title-cats" role="group" aria-labelledby="cats-label"></div>
     </div>
     <button id="title-play" type="button">Play</button>
@@ -183,7 +185,7 @@
     <span id="debug-note"></span>
   </div>
 
-  <div id="mobile-notice"><p>Cat Café is desktop only for now.<br />Come back on a bigger screen.</p></div>
+  <div id="mobile-notice"><p>The Café is desktop only for now.<br />Come back on a bigger screen.</p></div>
 
   <script type="module" src="./src/main.js"></script>
 </body>

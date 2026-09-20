@@ -59,7 +59,7 @@ export function showTitle() {
   for (let id = 1; id <= FACE_COUNT; id++) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'cat-choice';
+    button.className = 'face-choice';
     button.id = 'pick-face-' + id;
     button.setAttribute('aria-label', 'Face ' + id);
     button.setAttribute('aria-pressed', String(id === faceId));
