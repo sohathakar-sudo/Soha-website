@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>The Café — prep faces</title>
+<style>
+  body { margin: 0; padding: 24px; background: #16161a; color: #e8e8ec;
+         font: 14px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 18px; color: #9a9aa4; max-width: 74ch; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #9a9aa4; margin: 24px 0 10px; }
+  #drop { border: 2px dashed #45454f; border-radius: 8px; padding: 32px; text-align: center;
+          color: #9a9aa4; cursor: pointer; background: #1b1b21; }
+  #drop.over { border-color: #c2493d; color: #e8e8ec; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 14px 0; }
+  button { font: inherit; background: #2f2f37; color: #e8e8ec; border: 1px solid #45454f;
+           border-radius: 5px; padding: 7px 14px; cursor: pointer; }
+  button.primary { background: #4a6f4a; border-color: #5d8a5d; }
+  button:hover { filter: brightness(1.15); }
+  label.opt { color: #9a9aa4; display: flex; align-items: center; gap: 6px; }
+  input[type=range] { width: 120px; }
+  .faces { display: flex; flex-wrap: wrap; gap: 16px; }
+  .slot { background: #1b1b21; border: 1px solid #2b2b35; border-radius: 8px; padding: 12px; }
+  .slot .sizes { display: flex; align-items: flex-end; gap: 12px; }
+  .slot canvas { image-rendering: pixelated; background: #f0e6d6; display: block; }
+  .slot .meta { margin-top: 8px; font-size: 12px; color: #9a9aa4; display: flex; gap: 8px; align-items: center; }
+  .slot select { font: inherit; background: #101014; color: #e8e8ec; border: 1px solid #45454f;
+                 border-radius: 4px; padding: 2px 4px; }
+  .cap { font-size: 10px; color: #6f6f7a; text-align: center; margin-top: 4px; }
+  code { background: #26262c; padding: 1px 4px; border-radius: 3px; }
+  .room { margin-top: 10px; }
+  .room canvas { image-rendering: pixelated; border: 1px solid #2b2b35; max-width: 100%; }
+</style>
+</head>
+<body>
+
+<h1>Prep faces</h1>
+<p class="sub">
+  Drop in drawings at any size, in any format your browser can open — PNG, JPG, SVG. Each one
+  is trimmed, scaled to fit and centred on a 32 × 32 transparent canvas, which is the only
+  thing the game ever loads. Download them into <code>assets/</code> as
+  <code>face-01.png</code> … <code>face-08.png</code>.
+</p>
+
+<div id="drop">Drop your drawings here, or click to choose them — up to eight at once</div>
+<input id="file" type="file" accept="image/*" multiple hidden />
+
+<div class="row">
+  <label class="opt">Inset <input id="inset" type="range" min="0" max="6" value="1" /> <span id="inset-val">1px</span></label>
+  <label class="opt"><input id="trim" type="checkbox" checked /> trim transparent edges first</label>
+  <label class="opt"><input id="smooth" type="checkbox" checked /> smooth while scaling down</label>
+  <button id="download-all" class="primary">Download all</button>
+</div>
+
+<h2>Faces</h2>
+<div class="faces" id="faces"></div>
+
+<h2>In the room</h2>
+<p class="sub">
+  The faces on the floor at the scale the game runs at on a laptop, shadows and all.
+  The 1× tile above each face is the true pixel size — if a face stops reading there,
+  it needs bolder shapes.
+</p>
+<div class="room"><canvas id="room" width="320" height="96" style="width:960px"></canvas></div>
+
+<script>
+const SIZE = 32;
+const CREAM = '#f0e6d6';
+const SHADOW = 'rgba(60, 44, 32, 0.28)';
+
+const slots = [];   // { name, canvas, index }
+const facesHost = document.getElementById('faces');
+
+const insetInput = document.getElementById('inset');
+const trimInput = document.getElementById('trim');
+const smoothInput = document.getElementById('smooth');
+
+// Find the drawing inside the file: everything that is not fully transparent.
+// A drawing exported with a wide transparent margin would otherwise shrink to
+// nothing in the middle of the frame.
+function contentBounds(ctx, w, h) {
+  const { data } = ctx.getImageData(0, 0, w, h);
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (data[(y * w + x) * 4 + 3] > 8) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+  if (x1 < 0) return { x: 0, y: 0, w, h };          // fully transparent
+  return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+
+function prepare(image) {
+  const source = document.createElement('canvas');
+  source.width = image.naturalWidth || image.width || SIZE;
+  source.height = image.naturalHeight || image.height || SIZE;
+  const sctx = source.getContext('2d', { willReadFrequently: true });
+  sctx.drawImage(image, 0, 0, source.width, source.height);
+
+  const box = trimInput.checked
+    ? contentBounds(sctx, source.width, source.height)
+    : { x: 0, y: 0, w: source.width, h: source.height };
+
+  const out = document.createElement('canvas');
+  out.width = SIZE;
+  out.height = SIZE;
+  const ctx = out.getContext('2d');
+  ctx.imageSmoothingEnabled = smoothInput.checked;
+  ctx.imageSmoothingQuality = 'high';
+
+  const inset = Number(insetInput.value);
+  const room = SIZE - inset * 2;
+  // Preserve aspect: fit the longer side, centre the other.
+  const scale = Math.min(room / box.w, room / box.h);
+  const w = Math.max(1, Math.round(box.w * scale));
+  const h = Math.max(1, Math.round(box.h * scale));
+
+  ctx.drawImage(source, box.x, box.y, box.w, box.h,
+    Math.round((SIZE - w) / 2), Math.round((SIZE - h) / 2), w, h);
+
+  return { canvas: out, source: { w: source.width, h: source.height }, box };
+}
+
+function faceName(index) {
+  return 'face-' + String(index).padStart(2, '0') + '.png';
+}
+
+function download(canvas, name) {
+  const link = document.createElement('a');
+  link.download = name;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+function render() {
+  facesHost.innerHTML = '';
+
+  slots.forEach((slot, i) => {
+    const card = document.createElement('div');
+    card.className = 'slot';
+
+    const sizes = document.createElement('div');
+    sizes.className = 'sizes';
+    for (const zoom of [1, 2, 4]) {
+      const wrap = document.createElement('div');
+      const view = document.createElement('canvas');
+      view.width = SIZE;
+      view.height = SIZE;
+      view.style.width = SIZE * zoom + 'px';
+      view.style.height = SIZE * zoom + 'px';
+      const vctx = view.getContext('2d');
+      vctx.imageSmoothingEnabled = false;
+      vctx.drawImage(slot.canvas, 0, 0);
+      const cap = document.createElement('div');
+      cap.className = 'cap';
+      cap.textContent = zoom + '×';
+      wrap.append(view, cap);
+      sizes.appendChild(wrap);
+    }
+    card.appendChild(sizes);
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    const select = document.createElement('select');
+    for (let n = 1; n <= 8; n++) {
+      const option = document.createElement('option');
+      option.value = String(n);
+      option.textContent = faceName(n);
+      if (n === slot.index) option.selected = true;
+      select.appendChild(option);
+    }
+    select.addEventListener('change', () => { slot.index = Number(select.value); drawRoom(); });
+
+    const save = document.createElement('button');
+    save.textContent = 'Download';
+    save.addEventListener('click', () => download(slot.canvas, faceName(slot.index)));
+
+    const from = document.createElement('span');
+    from.textContent = `${slot.source.w}×${slot.source.h} → 32×32`;
+
+    meta.append(select, save, from);
+    card.appendChild(meta);
+    facesHost.appendChild(card);
+  });
+
+  drawRoom();
+}
+
+// The honest test: the faces on the floor, at the size they really are.
+function drawRoom() {
+  const canvas = document.getElementById('room');
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = CREAM;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  slots.forEach((slot, i) => {
+    const x = 24 + i * 36;
+    const groundY = 68;
+    ctx.save();
+    ctx.fillStyle = SHADOW;
+    ctx.beginPath();
+    ctx.ellipse(x, groundY, 8, 2.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.drawImage(slot.canvas, Math.round(x - SIZE / 2), Math.round(groundY - 14 - SIZE / 2));
+  });
+}
+
+function addFiles(files) {
+  const images = [...files].filter((f) => f.type.startsWith('image/'));
+  let pending = images.length;
+  if (!pending) return;
+
+  images.forEach((file) => {
+    const image = new Image();
+    image.onload = () => {
+      const prepared = prepare(image);
+      slots.push({
+        name: file.name,
+        canvas: prepared.canvas,
+        source: prepared.source,
+        index: Math.min(slots.length + 1, 8),
+      });
+      if (--pending === 0) render();
+    };
+    image.onerror = () => { if (--pending === 0) render(); };
+    image.src = URL.createObjectURL(file);
+  });
+}
+
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => addFiles(e.target.files));
+['dragenter', 'dragover'].forEach((t) =>
+  drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach((t) =>
+  drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', (e) => addFiles(e.dataTransfer.files));
+
+document.getElementById('download-all').addEventListener('click', () => {
+  slots.forEach((slot) => download(slot.canvas, faceName(slot.index)));
+});
+
+insetInput.addEventListener('input', () => {
+  document.getElementById('inset-val').textContent = insetInput.value + 'px';
+});
+
+// Re-preparing from the original files is what the settings change, so the
+// simplest honest behaviour is to ask for them again.
+for (const control of [insetInput, trimInput, smoothInput]) {
+  control.addEventListener('change', () => {
+    if (slots.length) drop.textContent = 'Settings changed — drop the drawings in again to re-prepare them';
+  });
+}
+</script>
+</body>
+</html>
