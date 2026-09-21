@@ -1,4 +1,4 @@
-import { VIEW, PATHS, PLAYER } from './config.js';
+import { VIEW, PATHS } from './config.js';
 import { createLoop } from './loop.js';
 import { attachInput, readInput, consumePress } from './input.js';
 import { createPlayer, applyMovement, applyInteraction, isSeated } from './player.js';
@@ -119,8 +119,7 @@ function stepPlayer(player, input, dt) {
   }
 
   // Render state last, so it reacts to where the player actually ended up.
-  // A step longer than one tick's walk is a teleport, not a stride.
-  advanceBob(renderStates.get(player.id), player, dt, PLAYER.speed * dt * 2);
+  advanceBob(renderStates.get(player.id), player, dt);
 }
 
 // --- Loop ------------------------------------------------------------------

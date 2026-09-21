@@ -32,6 +32,13 @@ export const FACE = {
   bobAmount: 2,        // peak height, in pixels
   bobPeriodPx: 18,     // pixels of travel per complete up-and-down
   settleSeconds: 0.2,  // how long the bob takes to fade in and out
+  // Someone arriving through snapshots moves in bursts — a step on one tick,
+  // nothing for the next few — so a player keeps counting as walking for a
+  // moment after their last movement. Long enough to bridge the gap between
+  // snapshots, short enough that stopping still feels immediate.
+  coastSeconds: 0.1,
+  // A move longer than this in one tick is a teleport, not a stride.
+  maxStepPx: 24,
   shadow: {
     w: 16,
     h: 5,

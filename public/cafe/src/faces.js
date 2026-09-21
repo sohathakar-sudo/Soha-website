@@ -41,6 +41,7 @@ export function createRenderState() {
     bob: 0,        // current vertical offset
     phase: 0,      // where we are in the up-and-down, in radians
     amplitude: 0,  // 0 settled, 1 fully bobbing
+    idleFor: 0,    // seconds since they last moved
     lastX: null,
     lastY: null,
   };
@@ -51,7 +52,7 @@ const TWO_PI = Math.PI * 2;
 // Called once per tick per player. Everything it needs it reads off the player's
 // position, so it works the same for someone driven by this keyboard and someone
 // arriving through a snapshot.
-export function advanceBob(renderState, player, dt, maxStep = Infinity) {
+export function advanceBob(renderState, player, dt, maxStep = FACE.maxStepPx) {
   const previousX = renderState.lastX ?? player.x;
   const previousY = renderState.lastY ?? player.y;
   let distance = Math.hypot(player.x - previousX, player.y - previousY);
@@ -62,7 +63,8 @@ export function advanceBob(renderState, player, dt, maxStep = Infinity) {
   // than a stride. Cap it so it cannot fling the bob forward.
   if (distance > maxStep) distance = 0;
 
-  const walking = player.state !== 'sitting' && distance > 0.001;
+  renderState.idleFor = distance > 0.001 ? 0 : renderState.idleFor + dt;
+  const walking = player.state !== 'sitting' && renderState.idleFor < FACE.coastSeconds;
 
   // Phase advances per pixel travelled: walk slower and the bob slows with you.
   if (walking) {

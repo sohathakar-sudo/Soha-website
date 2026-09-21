@@ -3,7 +3,7 @@
 Paste-into-a-Claude-Project brief. Everything a fresh session needs to be useful
 without re-deriving decisions or re-litigating settled ones.
 
-Last updated: 20 September 2026.
+Last updated: 21 September 2026.
 
 ---
 
@@ -174,11 +174,12 @@ editor that exports room.json.
 | ✅ 3 Draw | `src/faces.js` — eight faces loaded once and indexed by `faceId`, shadow then face at the ground point, y-sorted; cat sheets deleted |
 | ✅ 4 Bob | distance-driven so it cannot desync from speed, settles over ~200ms, still when sitting |
 | ✅ 5 Prep tool | `tools/prep-faces.html` — trims, fits and centres any drawing to 32x32 |
-| ⬜ 6 Title + cleanup | multiplayer audit, README (the face picker and the `catId` → `faceId` migration landed early, in phase 3, since the title screen had to keep working) |
+| ✅ 6 Title + cleanup | multiplayer audit and README rewrite (the face picker and the `catId` → `faceId` migration landed early, in phase 3) |
 | ⬜ 7 Jukebox | zone exists, no behaviour |
 
-**All eight hand-drawn faces are in**, bobbing as they walk. No placeholder art
-remains for the people; only the room is still generated.
+**The faces build is finished.** All eight hand-drawn faces are in, bobbing as
+they walk. No placeholder art remains for the people; only the room is still
+generated. Next up is room artwork, then whatever in `BACKLOG.md` you want.
 
 **Current room:** imported from a Figma drawing. Lounge with four tables — one
 long one across the top — an L-shaped coffee counter, jukebox by the entrance,
@@ -217,6 +218,11 @@ garden through a doorway, L of bar rail with stools. **21 seats.**
 - **A Next rewrite instead of a redirect** for `/cafe` — a rewrite keeps the URL
   at `/cafe`, so every relative path resolved one directory too high.
 - **Autoplay.** Nothing may make noise before the player interacts.
+- **A bob that only worked for the local player.** Judging "are they walking"
+  from this tick's movement works for a keyboard, which moves a little every
+  tick, and fails for snapshots, which move a lot on one tick and nothing on the
+  next few. A player now keeps counting as walking for a moment after their last
+  movement.
 
 ---
 
