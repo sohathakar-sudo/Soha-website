@@ -51,9 +51,23 @@ export function isConnected() {
 // that was never set up.
 function relayUrl() {
   if (NET.url) return NET.url;
+
+  // ?relay=wss://... — so a room can be shared as a link rather than as an
+  // instruction to open the developer console. Remembered afterwards, so a
+  // refresh does not drop you back out of the room.
+  //
+  // It is worth being clear about what this is: a link that tells your browser
+  // which server to send your name and your position to. There are no
+  // credentials involved and nothing is read back, but only follow one from
+  // somebody you would tell where you are.
   try {
-    const override = localStorage.getItem('cafe:relay');
-    if (override) return override;
+    const asked = new URLSearchParams(location.search).get('relay');
+    if (asked) {
+      localStorage.setItem('cafe:relay', asked);
+      return asked;
+    }
+    const remembered = localStorage.getItem('cafe:relay');
+    if (remembered) return remembered;
   } catch { /* storage unavailable; fall through to the default */ }
 
   const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);

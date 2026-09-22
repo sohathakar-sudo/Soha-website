@@ -114,6 +114,51 @@ Furniture follows the data: each solid is drawn as whatever kind it says it is.
 
 ---
 
+## Playing with somebody else
+
+Multiplayer is built but not switched on: the café talks to a relay, and no
+relay is configured, so a deployed café is a single-player room and says
+nothing. See `MULTIPLAYER.md` for why it is a relay and what it costs.
+
+**On one machine**, two windows:
+
+```
+npm run relay          # leave running
+npm run cafe           # in another tab
+```
+
+Open <http://localhost:8000/cafe/> twice. Localhost finds the relay on its own.
+
+**With somebody else**, the relay has to be reachable from their computer, and
+it has to be `wss://` rather than `ws://` — browsers will not open an insecure
+socket from a page served over HTTPS. So a plain `ws://your-ip:8001` will not
+work from a deployed café, however open the port is.
+
+Either tunnel the local relay:
+
+```
+npm run relay
+cloudflared tunnel --url http://localhost:8001     # prints an https:// address
+```
+
+or put `scripts/relay.mjs` on any always-on host that terminates TLS. It has no
+dependencies, so `node relay.mjs` is the whole deployment.
+
+Then share the café with the relay named in the link — swapping the `https` of
+the tunnel's address for `wss`:
+
+```
+https://your-site/cafe/?relay=wss://whatever-the-tunnel-printed
+```
+
+It is remembered after the first visit, so refreshing keeps you in the room.
+
+A link like that tells your browser where to send your name and position. There
+are no credentials in it and nothing is read back, but only follow one from
+somebody you would be happy to tell where you are standing.
+
+---
+
 ## Sound
 
 The café hums, plays something on the jukebox, lets the garden in through the
