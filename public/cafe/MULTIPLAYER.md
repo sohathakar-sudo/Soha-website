@@ -84,6 +84,46 @@ still. The messages should be too.
 
 ---
 
+## 3a. Alone is not worth a connection
+
+An empty room costs nothing on its own — nobody is connected, so there is
+nothing to pay for, and a hibernating room is the hosting provider's problem
+rather than ours.
+
+The case that actually costs money is **one person, by themselves**. They are
+connected, publishing, heartbeating, subscribed — and there is no one on the
+other end of any of it. That is the most likely state this café will ever be in,
+and left alone it is the single largest thing on the bill.
+
+So: **after five minutes alone, go dormant.**
+
+- Stop publishing. Nobody is listening
+- Unsubscribe from the position channel
+- Keep one cheap presence check — once a minute is about 43k messages a month,
+  which is noise
+- On seeing somebody arrive, wake: resubscribe, publish once so they see you
+  too, carry on
+
+Five minutes rather than immediately, because somebody is most likely to arrive
+shortly after somebody else has, and a connection that drops and reopens every
+few seconds is both worse and more expensive than one left open.
+
+**What it costs you:** waking is not instant. Alone and dormant, you might not
+see someone for up to a poll interval after they walk in. For a café that is
+nothing — people arrive and then stay for an hour. It would be unacceptable in
+a game where the first second mattered, and this is not one.
+
+**What it does not change:** anything visible. Dormant still means you are in
+the café, walking around, with the jukebox playing. The room does not know and
+does not care. Only the socket is asleep.
+
+This pairs with §3 rather than repeating it. Send-on-change makes a *present*
+person cheap; going dormant makes an *absent* crowd free. Between them the
+common case — Soha alone in her own café at midnight — costs approximately
+nothing, which is the correct price for it.
+
+---
+
 ## 4. What travels
 
 The `Player` object is already the wire format — plain fields, no methods, no
@@ -172,7 +212,9 @@ this kind of before/after diffing — this is the same idea pointed at the wire.
 3. **Send-on-change.** Do it early: it shapes the message format, and retrofitting
    it means revisiting everything.
 4. **Presence and timeouts.** People close laptops; they do not press the mat.
-5. **The empty room.** See §8.
+5. **Dormancy** (§3a). Needs presence working first, and is the step that makes
+   the usual case — one person, alone — free.
+6. **The empty room.** See §8.
 
 ---
 
