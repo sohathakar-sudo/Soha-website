@@ -37,7 +37,8 @@
 <h1>Layout importer</h1>
 <p class="sub">
   Drop a 640 × 360 PNG drawn in the key colours (see <code>LAYOUT.md</code>) and it becomes
-  <code>room.json</code>. You draw objects only — seats go on every side with clear floor,
+  <code>room.json</code>. You draw objects only — tables seat two or four along their
+  long sides depending on length,
   and zones are grown around them, so anywhere you can walk to, you can sit.
 </p>
 
@@ -82,6 +83,8 @@ const SEAT_OUT = 14;      // seat distance from a table edge
 const SEAT_NORTH = 12;    // a seat above a table sits slightly closer
 const STOOL_OUT = 12;     // stool distance from the bar rail
 const STOOL_SPACING = 48;
+// A table this long down its long side seats four; anything shorter seats two.
+const FOUR_SEATER_MIN = 96;
 const STOOL_END_CLEAR = 24;
 const ZONE_PAD = 24;      // table zone grows this much every side
 const STRIP = 40;         // counter and jukebox standing strip
@@ -227,14 +230,44 @@ function sideIsOpen(rect, side, depth = CLEAR_DEPTH) {
   return openness(rect, side, depth) >= OPEN_RATIO;
 }
 
+// A table is a two-seater or a four-seater, never a three. Its size decides
+// which: anything long enough to fit two people down one side is a four, the
+// rest are twos.
+//
+// Seats only ever go on the two LONG sides, the way people actually sit at a
+// rectangular table — nobody perches on the end of a bench. If one long side is
+// against a wall the whole party moves to the other one, so the count stays 2
+// or 4 rather than degrading to 1 or 3.
 function tableSeats(rect) {
-  const cx = Math.round(rect.x + rect.w / 2);
-  const cy = Math.round(rect.y + rect.h / 2);
+  const horizontal = rect.w >= rect.h;
+  const long = horizontal ? rect.w : rect.h;
+  const capacity = long >= FOUR_SEATER_MIN ? 4 : 2;
+
+  const sides = horizontal ? ['north', 'south'] : ['west', 'east'];
+  const open = sides.filter((side) => sideIsOpen(rect, side));
+  // Both long sides blocked: try the ends before giving up entirely.
+  const use = open.length ? open : sides.filter((side) => openness(rect, side) > 0);
+  if (!use.length) return [];
+
+  const perSide = Math.round(capacity / use.length);
+
+  // Evenly spaced along the side: one seat sits at the middle, two sit a
+  // quarter in from each end.
+  const along = (i, n) => {
+    const start = horizontal ? rect.x : rect.y;
+    return Math.round(start + (long * (i + 0.5)) / n);
+  };
+
   const seats = [];
-  if (sideIsOpen(rect, 'south')) seats.push({ x: cx, y: rect.y + rect.h + SEAT_OUT });
-  if (sideIsOpen(rect, 'north')) seats.push({ x: cx, y: rect.y - SEAT_NORTH });
-  if (sideIsOpen(rect, 'west'))  seats.push({ x: rect.x - SEAT_OUT, y: cy + 8 });
-  if (sideIsOpen(rect, 'east'))  seats.push({ x: rect.x + rect.w + SEAT_OUT, y: cy + 8 });
+  for (const side of use) {
+    for (let i = 0; i < perSide; i++) {
+      const at = along(i, perSide);
+      if (side === 'north') seats.push({ x: at, y: rect.y - SEAT_NORTH });
+      if (side === 'south') seats.push({ x: at, y: rect.y + rect.h + SEAT_OUT });
+      if (side === 'west')  seats.push({ x: rect.x - SEAT_OUT, y: at + 8 });
+      if (side === 'east')  seats.push({ x: rect.x + rect.w + SEAT_OUT, y: at + 8 });
+    }
+  }
   return seats;
 }
 
