@@ -20,6 +20,10 @@ export function createPlayer({ id, name = 'guest', faceId = 1, x = 0, y = 0 }) {
     // one jukebox, and switching it off switches it off for whoever is in
     // there with you. See the open question in CONTEXT.md.
     music: true,
+    // Set for one tick when they ask to leave, and cleared by whoever acts on
+    // it. A flag rather than a call, because applyInteraction is pure and has
+    // no business tearing down a room.
+    leaving: false,
   };
 }
 
@@ -98,11 +102,13 @@ function nearestFreeSeat(zone, x, y, taken) {
 //   sitting + any movement                 -> walking, released from the seat
 //   walking + Enter in a counter zone      -> a coffee, good for COFFEE.lasts
 //   walking + Enter in the jukebox zone    -> the music stops, or starts again
+//   walking + Enter on the welcome mat     -> asks to leave; the caller acts
 //
 // input.interact is already edge-triggered by the time it arrives here.
 // `taken` is the list of seat positions other players are already on.
 export function applyInteraction(player, input, room, taken = []) {
   let { state, x, y, holdingCoffee, coffees, music, coffeeLeft } = player;
+  let leaving = false;
 
   const moving = input.left || input.right || input.up || input.down;
 
@@ -126,10 +132,12 @@ export function applyInteraction(player, input, room, taken = []) {
       coffees += 1;
     } else if (zone && zone.type === 'jukebox') {
       music = !music;
+    } else if (zone && zone.type === 'door') {
+      leaving = true;
     }
   }
 
-  return { state, x, y, holdingCoffee, coffees, music, coffeeLeft };
+  return { state, x, y, holdingCoffee, coffees, music, coffeeLeft, leaving };
 }
 
 export function isSeated(player) {

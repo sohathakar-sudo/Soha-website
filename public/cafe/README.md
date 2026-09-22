@@ -34,6 +34,7 @@ nothing about its host.
 | `Enter` at a table or bar | sit at the nearest free seat |
 | `Enter` at the counter | buy a coffee |
 | `Enter` at the jukebox | stop the music, or start it again |
+| `Enter` on the welcome mat | leave, back out to the door |
 | any direction key while seated | stand up |
 | `` ` `` (backtick) | the debug editor |
 
@@ -135,6 +136,12 @@ between them. So in the café the birds fade in over the last stretch of floor
 before the opening and are gone by mid-room, and in the garden the jukebox does
 the same thing in reverse. Inside either room it is flat. The two meet at the
 threshold, so crossing it is a fade and never a jump.
+
+**The café keeps playing when you switch tabs.** That is the point of it — you
+put it on and go and work somewhere else. It is why the ambience scheduler runs
+on its own timer rather than on the game's tick: a tab you have switched away
+from stops painting frames, which would stop the music at the moment it is most
+useful.
 
 **There is no mute button and no volume slider.** Your operating system has a
 volume key and your browser can mute the tab, and both are better than anything

@@ -28,6 +28,22 @@ export async function loadFaces() {
   return faces;
 }
 
+// Objects a person carries or sits behind. Loaded once, indexed by name, never
+// per player — the same rule the faces follow, and for the same reason.
+const props = new Map();
+
+export async function loadProps(names) {
+  await Promise.all(names.map(async (name) => {
+    const image = await loadImage(PATHS.props + name + '.png').catch(() => null);
+    if (image) props.set(name, image);
+  }));
+  return props;
+}
+
+export function propImage(name) {
+  return props.get(name) || null;
+}
+
 export function faceImage(faceId) {
   const index = Math.min(Math.max(Math.round(faceId) || 1, 1), FACE_COUNT) - 1;
   return faces[index] || null;
@@ -48,6 +64,11 @@ export function createRenderState() {
     // that causes them is not happening, so they start from a fresh wait.
     nextDesk: null,
     nextSip: null,
+    // Which way they have turned to work, in radians, and where their laptop
+    // sits on the table. Both derived from position each tick, so a player
+    // arriving over the wire gets them without sending anything extra.
+    faceAngle: 0,
+    deskAt: null,
     lastX: null,
     lastY: null,
   };
@@ -116,16 +137,32 @@ export function drawShadow(ctx, x, y, bob = 0) {
   ctx.restore();
 }
 
-export function drawFace(ctx, faceId, x, y, bob = 0) {
+export function drawFace(ctx, faceId, x, y, bob = 0, angle = 0) {
   const image = faceImage(faceId);
   if (!image) return;
 
   // (x, y) is the ground point; the face hangs above it.
-  ctx.drawImage(
-    image,
-    Math.round(x - FACE.size / 2),
-    Math.round(y - FACE.hover - FACE.size / 2 + bob),
-    FACE.size,
-    FACE.size,
-  );
+  const left = Math.round(x - FACE.size / 2);
+  const top = Math.round(y - FACE.hover - FACE.size / 2 + bob);
+
+  if (!angle) {
+    ctx.drawImage(image, left, top, FACE.size, FACE.size);
+    return;
+  }
+
+  // Turning to face a table. Rotated about the centre of the drawing so the
+  // head stays where it was rather than swinging off the seat.
+  ctx.save();
+  ctx.translate(left + FACE.size / 2, top + FACE.size / 2);
+  ctx.rotate(angle);
+  ctx.drawImage(image, -FACE.size / 2, -FACE.size / 2, FACE.size, FACE.size);
+  ctx.restore();
+}
+
+// A prop resting on a surface or held beside someone. Drawn at its natural
+// size, centred on the point given.
+export function drawProp(ctx, name, x, y) {
+  const image = propImage(name);
+  if (!image) return;
+  ctx.drawImage(image, Math.round(x - image.width / 2), Math.round(y - image.height / 2));
 }

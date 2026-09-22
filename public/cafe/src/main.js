@@ -2,7 +2,7 @@ import { VIEW, PATHS, AUDIO } from './config.js';
 import { createLoop } from './loop.js';
 import { attachInput, readInput, consumePress } from './input.js';
 import { createPlayer, applyMovement, applyInteraction, applyTime, isSeated, isWorking } from './player.js';
-import { loadFaces, loadImage, createRenderState, advanceBob } from './faces.js';
+import { loadFaces, loadProps, loadImage, createRenderState, advanceBob } from './faces.js';
 import { drawBackground, drawForeground, drawPlayers } from './render.js';
 import { loadRoom } from './room.js';
 import { showTitle, drawHud } from './ui.js';
@@ -177,6 +177,50 @@ function deskSound(player) {
   return Math.random() < 0.2 ? other : usual;
 }
 
+// The table a seated player is at: the table solid nearest their seat.
+function tableUnder(player) {
+  if (!room) return null;
+  let best = null, bestD = 64 * 64;
+  for (const s of room.solids) {
+    if (s.kind !== 'table') continue;
+    const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+    const d = (cx - player.x) ** 2 + (cy - player.y) ** 2;
+    if (d < bestD) { bestD = d; best = s; }
+  }
+  return best;
+}
+
+// Turning to face what you sat down at, and putting your laptop on it.
+//
+// Both are worked out from position rather than stored on the player, so a
+// player arriving over the wire turns and unpacks exactly like a local one
+// without a byte of extra state on the wire.
+function faceTheTable(player, renderState) {
+  if (!isSeated(player)) {
+    renderState.faceAngle = 0;
+    renderState.deskAt = null;
+    return;
+  }
+
+  const table = tableUnder(player);
+  if (!table) return;
+
+  const cx = table.x + table.w / 2, cy = table.y + table.h / 2;
+  const dx = cx - player.x, dy = cy - player.y;
+
+  // Square on to the nearest edge: a hand-drawn face has no in-between poses.
+  const angle = Math.abs(dx) > Math.abs(dy)
+    ? (dx > 0 ? -Math.PI / 2 : Math.PI / 2)
+    : (dy > 0 ? 0 : Math.PI);
+  renderState.faceAngle = angle;
+
+  // The laptop sits on the table, just inside the edge they are facing.
+  const inset = 13;
+  renderState.deskAt = Math.abs(dx) > Math.abs(dy)
+    ? { x: dx > 0 ? table.x + inset : table.x + table.w - inset, y: player.y - 6 }
+    : { x: player.x, y: dy > 0 ? table.y + inset : table.y + table.h - inset };
+}
+
 // The doorway a point is standing in, or null. Doors are not zones in
 // room.json — the layout colour key has no colour for one — so they are matched
 // against the list in config rather than through room.zoneAt.
@@ -228,13 +272,20 @@ function soundChanges(player, before, renderState, footfallsBefore, dt) {
   }
 
   if (player.coffees > before.coffees) {
-    play('coffee', loudness);
+    // The till first, then the drink: you pay before you are handed anything.
+    play('register', loudness);
+    play('coffee', loudness, 0.35);
   }
 
   // The jukebox answers with a click either way — pressing a button that
   // produces silence has to still feel like pressing a button.
   if (player.music !== before.music) {
     play('click', loudness);
+  }
+
+  if (player.leaving) {
+    player.leaving = false;
+    if (player.id === LOCAL_ID) leaving = true;
   }
 
   // One footstep per completed bob cycle. A tick that covers several — a slow
@@ -286,6 +337,7 @@ function stepPlayer(player, input, dt) {
 
   // Render state last, so it reacts to where the player actually ended up.
   advanceBob(renderState, player, dt);
+  faceTheTable(player, renderState);
 
   soundChanges(player, before, renderState, footfallsBefore, dt);
 }
@@ -294,6 +346,7 @@ function stepPlayer(player, input, dt) {
 let tick = 0;
 
 function update(dt) {
+  if (leaving) return;
   tick++;
 
   if (consumePress('Backquote') && editor) editor.toggle();
@@ -310,9 +363,52 @@ function update(dt) {
   const me = players.get(LOCAL_ID);
   rememberCoffees(me.coffees);
 
+  if (leaving) { leave(); return; }
+
   // The room hums, the jukebox plays and the garden chirps from wherever they
   // are; this is the one place that tells them where the listener is standing.
   ambience.update(me, me.music);
+}
+
+// --- Leaving ---------------------------------------------------------------
+// Standing on the welcome mat and pressing Enter takes you back out to the
+// title screen. The flag is read at the top of the next tick rather than acted
+// on the instant it is set: tearing the room down from inside the loop that is
+// walking it is how you get a half-stepped player.
+let leaving = false;
+
+async function leave() {
+  loop.stop();
+  if (editor && editor.active) editor.toggle();
+
+  const me = players.get(LOCAL_ID);
+  removePlayer(LOCAL_ID);
+
+  play('doorOpen');
+  play('door', 1, 0.18);
+  play('doorClose', 1, 0.55);
+
+  // Back to the door, with the same name and face already filled in.
+  const choice = await showTitle();
+  enter(choice, me ? me.coffees : 0);
+}
+
+// Walking in: a fresh player on the spawn, the loop running again.
+function enter(choice, coffees) {
+  const me = createPlayer({
+    id: LOCAL_ID,
+    name: choice.name,
+    faceId: choice.faceId,
+    x: room.spawn.x,
+    y: room.spawn.y,
+  });
+  me.coffees = coffees;
+  savedCoffees = coffees;
+  addPlayer(me);
+
+  leaving = false;
+  ambience.start();
+  loop.start();
 }
 
 // What Enter would do from where the player is standing.
@@ -320,6 +416,7 @@ function promptFor(player) {
   if (isSeated(player)) return '';
   const zone = room ? room.zoneAt(player.x, player.y) : null;
   if (!zone) return '';
+  if (zone.type === 'door') return 'ENTER  leave the café';
   if (zone.type === 'counter') return 'ENTER  coffee';
   if (zone.type === 'jukebox') return player.music ? 'ENTER  stop the music' : 'ENTER  play something';
   return zone.seats && zone.seats.length ? 'ENTER  sit' : '';
@@ -333,10 +430,11 @@ function render() {
 
   const me = players.get(LOCAL_ID);
   // The editor replaces the HUD rather than crowding it: both want the same
-  // corners.
+  // corners. And between walking out and picking a face again there is nobody
+  // to draw a HUD for — the room is still there, the person is not.
   if (editor && editor.active) {
     editor.draw(ctx);
-  } else {
+  } else if (me) {
     drawHud(ctx, me, promptFor(me));
   }
 
@@ -387,36 +485,24 @@ async function boot() {
     loadImage(PATHS.assets + 'room-bg.png').catch(() => null),
     loadImage(PATHS.assets + 'room-fg.png').catch(() => null),
     loadFaces(),
+    loadProps(['laptop', 'cup']),
   ]);
 
   room = loadedRoom;
   art.bg = bg;
   art.fg = fg;
 
-  // The title screen blocks here until the player picks a name and a cat.
+  attachInput();
+  net.connect();
+
+  // The title screen blocks here until the player picks a name and a face.
   const choice = await showTitle();
 
-  const me = createPlayer({
-    id: LOCAL_ID,
-    name: choice.name,
-    faceId: choice.faceId,
-    x: room.spawn.x,
-    y: room.spawn.y,
-  });
   // The tally is a lifetime count and is remembered. The cup is not: a coffee
   // does not survive a reload, so a returning player starts with empty hands.
-  me.coffees = readCoffees();
-  savedCoffees = me.coffees;
-  addPlayer(me);
+  enter(choice, readCoffees());
 
-  // Audio was unlocked by the title screen's first click, so the loops can
-  // start the moment the player walks in.
-  ambience.start();
-
-  attachInput();
   editor = createDebugEditor({ canvas, room, loop, players, localId: LOCAL_ID, reloadArt });
-  net.connect();
-  loop.start();
 
   // A handle for the console and for the debug editor in phase 7. Read-only in
   // spirit: the game never reads anything back off it.

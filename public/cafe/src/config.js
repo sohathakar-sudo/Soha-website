@@ -102,6 +102,7 @@ export const AUDIO = {
     sit: 0.28,
     stand: 0.24,
     coffee: 0.40,
+    register: 0.38,
     doorOpen: 0.34,
     doorClose: 0.32,
     // Scribbling and sipping are narrow, soft and short, and they play over the
@@ -171,12 +172,19 @@ export const AUDIO = {
     garden:   { volume: 0.26, space: 'garden', throughDoor: { near: 24, far: 90 } },
   },
 
-  // A backgrounded tab is throttled and nobody is listening to it anyway.
-  suspendWhenHidden: true,
+  // The café keeps playing when you switch tabs. That is the whole point of it:
+  // you put it on and go and work somewhere else, and the room is still there.
+  //
+  // It costs something. A hidden tab stops painting frames, so the loops cannot
+  // be scheduled off the game's tick any more — see the scheduler in
+  // ambience.js, which runs on its own timer and books further ahead than a
+  // throttled background timer can fall behind.
+  suspendWhenHidden: false,
 };
 
 export const PATHS = {
   assets: './assets/',
+  props: './assets/props/',
   audio: './assets/audio/',
   room: './data/room.json',
 };

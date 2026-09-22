@@ -216,6 +216,24 @@ const RECIPES = {
     }
   },
 
+  // A till. The drawer knocks open, then coins land on each other — a handful
+  // of short metallic pings at random pitches, which is what a jingle actually
+  // is. Ending with the drawer shutting gives it a start and a finish.
+  register(ctx, out, at) {
+    burst(ctx, out, { freq: 900, q: 1.2, peak: 0.5, attack: 0.002, decay: 0.05, at });
+    tone(ctx, out, { freq: 1180, peak: 0.35, attack: 0.002, decay: 0.3, at: at + 0.01 });
+
+    const coins = 5 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < coins; i++) {
+      const t = at + 0.07 + Math.random() * 0.34;
+      const pitch = 2600 + Math.random() * 2200;
+      tone(ctx, out, { freq: pitch, peak: 0.16, attack: 0.001, decay: 0.09, at: t });
+      tone(ctx, out, { freq: pitch * 1.51, peak: 0.07, attack: 0.001, decay: 0.06, at: t });
+    }
+
+    burst(ctx, out, { freq: 260, type: 'lowpass', q: 0.8, peak: 0.7, attack: 0.003, decay: 0.12, at: at + 0.46 });
+  },
+
   // A pour that climbs as the cup fills, then the cup set down on the counter.
   coffee(ctx, out, at) {
     burst(ctx, out, {

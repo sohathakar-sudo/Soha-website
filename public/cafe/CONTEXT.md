@@ -220,6 +220,8 @@ garden through a doorway, L of bar rail with stools. **21 seats.**
 | Decision | Why |
 |---|---|
 | 640 × 360, raised from 480 × 270 | the room has to hold twelve people and let them run |
+| A seated face turns to its table | reverses the line below for the one case Soha asked for. A front-facing portrait rotated 180° reads as lying on its back, and that cost was put plainly before the call was made. Walking, standing and idling are all still face-on |
+| Sound keeps playing in a hidden tab | you put the café on and go and work in another tab; that is the whole use. It forced the ambience scheduler off the game's tick, since a hidden tab stops painting frames — it runs on its own timer with a 2.5s lookahead, longer than a throttled background timer can fall behind |
 | Faces, not sprite sheets | a hand-drawn face can't turn without a second drawing, so it doesn't turn; everyone looks at the viewer and that's the point |
 | Two states only: `walking`, `sitting` | `working`, seat `facing` and the laptop square were removed deliberately |
 | Seats on every open side | fixes "I can walk round that end but can't sit there" |
@@ -233,6 +235,7 @@ garden through a doorway, L of bar rail with stools. **21 seats.**
 | A room has one volume | the café does not get quieter at the counter or in the middle of the floor. Distance inside a space was tried and was wrong: it made the room feel like a set of pools rather than a place. Only a wall attenuates, and the doorway is the one hole in it |
 | `working` is a predicate, never a state | `isWorking()` asks a question about the two states that exist. Reintroducing a third was the mistake that seat facing and the laptop square came with |
 | A coffee lasts two minutes | a bottomless cup is odd once you notice it, and a tally that only goes up is not a thing you are holding. It counts down whether you are sitting or not, and it does not survive a reload |
+| You sit only where a stool is drawn | the garden rail generated stools every 48px along its length whether or not one was drawn there. The five in the garden are now the five Soha drew, found as dark blobs on the pale floor rather than typed in |
 | No in-game mute or volume control | the OS has a volume key and the browser has a tab mute; both are better than anything the café could draw in a corner, and neither needs building, persisting or explaining |
 | Sound synthesized, not sampled | the same move `make-placeholders.html` makes for the room: something real to work against now. Recordings drop in later via `assets/audio/manifest.json` with no code change |
 | Sound driven by state changes, not by input | `applyMovement` and `applyInteraction` must stay pure for the server; reading the difference in `main.js` also makes remote players audible for free |

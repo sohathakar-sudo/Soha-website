@@ -17,6 +17,7 @@ import { context, bus, gainFor } from './audio.js';
 // this file changing.
 
 let started = false;
+let pump = null;
 const loops = {};
 
 // --- Shared noise ----------------------------------------------------------
@@ -166,12 +167,27 @@ function buildMusic() {
 // playing, so they need a clock. It is the game's tick, not a timer of their
 // own: one place deciding when things happen, and a backgrounded tab that stops
 // ticking stops scheduling instead of queueing up a minute of birdsong.
-const LOOKAHEAD = 0.4;  // seconds of music scheduled in advance
+// Seconds of music booked in advance. This is generous on purpose: a hidden
+// tab has its timers throttled to roughly one call a second, so the buffer has
+// to be comfortably longer than that or the music gaps every time you look
+// away — which is exactly when it matters most.
+const LOOKAHEAD = 2.5;
+const PUMP_MS = 700;
 
 const clock = { nextChirp: 0, nextNote: 0, beat: 0 };
 
 function scheduleAhead(ctx) {
   const horizon = ctx.currentTime + LOOKAHEAD;
+
+  // If the timer was starved — a tab asleep for a long stretch, a machine that
+  // suspended — the clock can be minutes behind. Catch it up rather than
+  // scheduling every note it missed all at once.
+  if (clock.nextNote < ctx.currentTime - 1) {
+    const missed = Math.ceil((ctx.currentTime - clock.nextNote) / BEAT);
+    clock.nextNote += missed * BEAT;
+    clock.beat += missed;
+  }
+  if (clock.nextChirp < ctx.currentTime - 1) clock.nextChirp = ctx.currentTime + 1;
 
   while (clock.nextNote < horizon) {
     const chord = CHORDS[Math.floor(clock.beat / 4) % CHORDS.length];
@@ -236,6 +252,14 @@ export function start() {
   clock.nextNote = ctx.currentTime + 0.1;
   clock.nextChirp = ctx.currentTime + 1;
   clock.beat = 0;
+
+  // The scheduler runs on its own timer rather than on the game's tick. The
+  // tick is driven by animation frames, and a tab you have switched away from
+  // stops painting — which would stop the music at the moment the café is most
+  // useful. This keeps booking notes regardless.
+  clearInterval(pump);
+  pump = setInterval(() => scheduleAhead(ctx), PUMP_MS);
+  scheduleAhead(ctx);
 }
 
 // What each loop is currently sitting at. For the console and the debug editor:
@@ -259,6 +283,4 @@ export function update(listener, musicOn = true) {
 
   loops.music.to(musicOn ? music.volume * spaceGain(listener, music.space, music.throughDoor) : 0);
   loops.garden.to(garden.volume * spaceGain(listener, garden.space, garden.throughDoor));
-
-  scheduleAhead(ctx);
 }
