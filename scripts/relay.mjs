@@ -168,6 +168,20 @@ setInterval(() => {
   }
 }, SWEEP_SECONDS * 1000).unref();
 
+// Almost always this means a relay is already running, which is good news
+// wearing a frightening hat. Say so, rather than throwing a stack trace at
+// somebody who has done nothing wrong.
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n  Port ${PORT} is already in use.`);
+    console.error('  A relay is most likely already running in another window — look for');
+    console.error(`  one saying "café relay -> ws://localhost:${PORT}", and use that one.`);
+    console.error(`\n  To run a second one anyway: PORT=8002 npm run relay\n`);
+    process.exit(1);
+  }
+  throw err;
+});
+
 server.listen(PORT, () => {
   console.log(`\n  café relay  ->  ws://localhost:${PORT}`);
   console.log('  open the café in two browser windows.\n  Ctrl+C to stop.\n');
