@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>The Café — layout map</title>
+<style>
+  body {
+    margin: 0; padding: 24px; background: #16161a; color: #e8e8ec;
+    font: 14px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 22px; color: #9a9aa4; max-width: 70ch; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #9a9aa4; margin: 26px 0 10px; }
+  canvas { image-rendering: pixelated; background: #101014; max-width: 100%; border: 1px solid #2c2c34; }
+  button {
+    font: inherit; background: #2f2f37; color: #e8e8ec;
+    border: 1px solid #45454f; border-radius: 5px; padding: 7px 13px; cursor: pointer;
+  }
+  button:hover { background: #3b3b45; }
+  button.primary { background: #4a6f4a; border-color: #5d8a5d; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  #drop {
+    border: 2px dashed #45454f; border-radius: 8px; padding: 30px; text-align: center;
+    color: #9a9aa4; cursor: pointer;
+  }
+  #drop.over { border-color: #c98a4b; color: #e8e8ec; }
+  textarea {
+    width: 100%; height: 260px; font: 12px/1.45 monospace; background: #101014; color: #cfcfd6;
+    border: 1px solid #45454f; border-radius: 5px; padding: 10px; box-sizing: border-box;
+  }
+  .key { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 14px; padding: 0; list-style: none; }
+  .key li { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+  .swatch { width: 15px; height: 15px; border: 1px solid #00000055; display: inline-block; }
+  .warn { color: #e8b06a; }
+  .bad { color: #e87a6a; }
+  .ok { color: #86c98a; }
+  code { background: #26262c; padding: 1px 5px; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<h1>Layout map</h1>
+<p class="sub">
+  Flat colour blocks in, <code>room.json</code> out. Draw the room at 640 × 360 with the
+  key below — zones first, solids on top of them, then a small square per seat — export
+  PNG, drop it here. See <code>LAYOUT.md</code> for the sizes and spacing rules.
+</p>
+
+<ul class="key" id="key"></ul>
+
+<h2>Export the current room as a map</h2>
+<div class="row">
+  <button id="export">Download layout-map.png</button>
+  <span class="sub" style="margin:0">Start from what exists instead of a blank frame.</span>
+</div>
+<canvas id="preview" width="640" height="360"></canvas>
+
+<h2>Read a map back</h2>
+<div id="drop">Drop a PNG here, or click to choose one</div>
+<input id="file" type="file" accept="image/png,image/*" hidden />
+
+<h2>Result</h2>
+<div class="row">
+  <button id="copy" class="primary">Copy JSON</button>
+  <span id="status"></span>
+</div>
+<div id="report"></div>
+<textarea id="out" spellcheck="false"></textarea>
+
+<script>
+const W = 640, H = 360;
+
+// Exact keys. Anything not within TOLERANCE of one of these is floor.
+const KEYS = [
+  { name: 'solid',    hex: '#FF00FF', rgb: [255, 0, 255],   kind: 'solid' },
+  { name: 'table',    hex: '#00FFFF', rgb: [0, 255, 255],   kind: 'zone' },
+  { name: 'counter',  hex: '#FFFF00', rgb: [255, 255, 0],   kind: 'zone' },
+  { name: 'bar',      hex: '#00FF00', rgb: [0, 255, 0],     kind: 'zone' },
+  { name: 'jukebox',  hex: '#FF8000', rgb: [255, 128, 0],   kind: 'zone' },
+  { name: 'seat',     hex: '#FF0000', rgb: [255, 0, 0],     kind: 'point' },
+  { name: 'spawn',    hex: '#0000FF', rgb: [0, 0, 255],     kind: 'point' },
+];
+const TOLERANCE = 60;      // squared-distance slack, so mild anti-aliasing still lands
+const MIN_REGION = 3;      // ignore specks smaller than this on a side
+const SEATING = ['table', 'bar', 'counter'];
+
+// --- reading ---------------------------------------------------------------
+
+function classify(r, g, b, a) {
+  if (a < 128) return -1;
+  let best = -1;
+  let bestDistance = TOLERANCE * TOLERANCE;
+  KEYS.forEach((key, i) => {
+    const d = (r - key.rgb[0]) ** 2 + (g - key.rgb[1]) ** 2 + (b - key.rgb[2]) ** 2;
+    if (d < bestDistance) { bestDistance = d; best = i; }
+  });
+  return best;
+}
+
+// Greedy maximal-rectangle cover. A flood fill would merge touching shapes —
+// the four walls of a room touch at the corners and would come back as one
+// rectangle the size of the room — so instead each colour is decomposed into
+// the rectangles that exactly cover it.
+function regionsOf(labels, keyIndex) {
+  const covered = new Uint8Array(W * H);
+  const out = [];
+
+  const free = (x, y) => labels[y * W + x] === keyIndex && !covered[y * W + x];
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (!free(x, y)) continue;
+
+      let w = 1;
+      while (x + w < W && free(x + w, y)) w++;
+
+      let h = 1;
+      grow: while (y + h < H) {
+        for (let i = 0; i < w; i++) if (!free(x + i, y + h)) break grow;
+        h++;
+      }
+
+      for (let yy = y; yy < y + h; yy++) {
+        for (let xx = x; xx < x + w; xx++) covered[yy * W + xx] = 1;
+      }
+      out.push({ x, y, w, h, count: w * h });
+    }
+  }
+  return out;
+}
+
+// Zones are drawn *under* their solids and seat squares, so their colour comes
+// back as a ring with holes in it. Decomposing that would give a pile of
+// fragments, so a zone is instead the bounding box of a connected blob, with
+// boxes that overlap merged — which also survives a solid touching the zone edge
+// and splitting the ring in two.
+function blobsOf(labels, keyIndex) {
+  const seen = new Uint8Array(W * H);
+  const boxes = [];
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const start = y * W + x;
+      if (seen[start] || labels[start] !== keyIndex) continue;
+
+      let minX = x, maxX = x, minY = y, maxY = y;
+      const stack = [start];
+      seen[start] = 1;
+
+      while (stack.length) {
+        const p = stack.pop();
+        const px = p % W;
+        const py = (p - px) / W;
+        if (px < minX) minX = px;
+        if (px > maxX) maxX = px;
+        if (py < minY) minY = py;
+        if (py > maxY) maxY = py;
+
+        if (px > 0 && !seen[p - 1] && labels[p - 1] === keyIndex) { seen[p - 1] = 1; stack.push(p - 1); }
+        if (px < W - 1 && !seen[p + 1] && labels[p + 1] === keyIndex) { seen[p + 1] = 1; stack.push(p + 1); }
+        if (py > 0 && !seen[p - W] && labels[p - W] === keyIndex) { seen[p - W] = 1; stack.push(p - W); }
+        if (py < H - 1 && !seen[p + W] && labels[p + W] === keyIndex) { seen[p + W] = 1; stack.push(p + W); }
+      }
+
+      boxes.push({ x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 });
+    }
+  }
+
+  // Merge boxes that overlap or touch: two halves of a split ring are one zone.
+  let merged = true;
+  while (merged) {
+    merged = false;
+    outer: for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const a = boxes[i], b = boxes[j];
+        if (a.x <= b.x + b.w && a.x + a.w >= b.x && a.y <= b.y + b.h && a.y + a.h >= b.y) {
+          const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+          boxes[i] = {
+            x, y,
+            w: Math.max(a.x + a.w, b.x + b.w) - x,
+            h: Math.max(a.y + a.h, b.y + b.h) - y,
+          };
+          boxes.splice(j, 1);
+          merged = true;
+          break outer;
+        }
+      }
+    }
+  }
+
+  return boxes.map((b) => ({ ...b, count: b.w * b.h }));
+}
+
+function readMap(image) {
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = false;
+  // Anything bigger than the room is downscaled without smoothing, so a 2x or
+  // 4x export still reads as exact colours.
+  ctx.drawImage(image, 0, 0, W, H);
+
+  const data = ctx.getImageData(0, 0, W, H).data;
+  const labels = new Int8Array(W * H);
+  for (let i = 0; i < W * H; i++) {
+    labels[i] = classify(data[i * 4], data[i * 4 + 1], data[i * 4 + 2], data[i * 4 + 3]);
+  }
+
+  const warnings = [];
+  const room = { solids: [], zones: [], spawn: { x: 40, y: 90 } };
+
+  KEYS.forEach((key, index) => {
+    const finder = key.kind === 'solid' ? regionsOf : blobsOf;
+    const regions = finder(labels, index).filter((r) => {
+      const tooSmall = r.w < MIN_REGION || r.h < MIN_REGION;
+      if (tooSmall && key.kind !== 'point') {
+        warnings.push(['warn', `Ignored a ${r.w}×${r.h} speck of ${key.name} at ${r.x},${r.y}.`]);
+      }
+      return !tooSmall || key.kind === 'point';
+    });
+
+    if (key.kind === 'solid') {
+      for (const r of regions) room.solids.push({ x: r.x, y: r.y, w: r.w, h: r.h });
+    } else if (key.kind === 'zone') {
+      for (const r of regions) room.zones.push({ type: key.name, x: r.x, y: r.y, w: r.w, h: r.h });
+    } else if (key.name === 'spawn') {
+      if (regions.length === 0) warnings.push(['bad', 'No spawn point (blue) found — kept the old one.']);
+      if (regions.length > 1) warnings.push(['bad', `${regions.length} spawn points found; used the first.`]);
+      if (regions[0]) {
+        room.spawn = { x: Math.round(regions[0].x + regions[0].w / 2), y: Math.round(regions[0].y + regions[0].h / 2) };
+      }
+    }
+  });
+
+  // Seats last: each belongs to whichever zone contains it.
+  const seatRegions = blobsOf(labels, KEYS.findIndex((k) => k.name === 'seat'));
+  const inside = (rect, x, y) => x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+
+  for (const region of seatRegions) {
+    const x = Math.round(region.x + region.w / 2);
+    const y = Math.round(region.y + region.h / 2);
+
+    const zone = room.zones.find((z) => SEATING.includes(z.type) && inside(z, x, y));
+    if (!zone) {
+      warnings.push(['bad', `Seat at ${x},${y} is not inside a table, bar or counter zone — dropped.`]);
+      continue;
+    }
+    if (room.solids.some((s) => inside(s, x, y))) {
+      warnings.push(['bad', `Seat at ${x},${y} sits on a solid, so nobody can stand there — dropped.`]);
+      continue;
+    }
+    (zone.seats || (zone.seats = [])).push({ x, y });
+  }
+
+  // Rule checks worth surfacing rather than silently accepting.
+  for (const zone of room.zones) {
+    if (zone.type === 'table' || zone.type === 'bar') {
+      if (!zone.seats) warnings.push(['bad', `The ${zone.type} zone at ${zone.x},${zone.y} has no seats.`]);
+    }
+    for (const other of room.zones) {
+      if (other === zone) continue;
+      const overlap = zone.x < other.x + other.w && zone.x + zone.w > other.x &&
+                      zone.y < other.y + other.h && zone.y + zone.h > other.y;
+      if (overlap && room.zones.indexOf(zone) < room.zones.indexOf(other)) {
+        warnings.push(['warn', `Zones overlap at ${zone.x},${zone.y} and ${other.x},${other.y} — Enter will pick the later one.`]);
+      }
+    }
+  }
+
+  if (!room.solids.length) warnings.push(['warn', 'No solids (magenta) found — the room has no walls.']);
+
+  return { room, warnings };
+}
+
+// --- writing ---------------------------------------------------------------
+
+function drawMap(room, canvas) {
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  const colourOf = (name) => KEYS.find((k) => k.name === name).hex;
+
+  for (const zone of room.zones || []) {
+    ctx.fillStyle = colourOf(zone.type) || '#cccccc';
+    ctx.fillRect(zone.x, zone.y, zone.w, zone.h);
+  }
+  for (const solid of room.solids || []) {
+    ctx.fillStyle = colourOf('solid');
+    ctx.fillRect(solid.x, solid.y, solid.w, solid.h);
+  }
+  for (const zone of room.zones || []) {
+    ctx.fillStyle = colourOf('seat');
+    for (const seat of zone.seats || []) ctx.fillRect(seat.x - 2, seat.y - 2, 4, 4);
+  }
+  if (room.spawn) {
+    ctx.fillStyle = colourOf('spawn');
+    ctx.fillRect(room.spawn.x - 2, room.spawn.y - 2, 4, 4);
+  }
+  return canvas;
+}
+
+// --- page ------------------------------------------------------------------
+
+const preview = document.getElementById('preview');
+const out = document.getElementById('out');
+const report = document.getElementById('report');
+const status = document.getElementById('status');
+const drop = document.getElementById('drop');
+const file = document.getElementById('file');
+
+document.getElementById('key').innerHTML = KEYS
+  .map((k) => `<li><span class="swatch" style="background:${k.hex}"></span>${k.name} <code>${k.hex}</code></li>`)
+  .join('');
+
+let current = null;
+
+fetch('../data/room.json', { cache: 'no-store' })
+  .then((r) => r.json())
+  .then((room) => { current = room; drawMap(room, preview); })
+  .catch(() => { status.textContent = 'Could not read ../data/room.json — serve this page to preview the current room.'; });
+
+document.getElementById('export').addEventListener('click', () => {
+  const link = document.createElement('a');
+  link.download = 'layout-map.png';
+  link.href = preview.toDataURL('image/png');
+  link.click();
+});
+
+function show(result) {
+  out.value = JSON.stringify(result.room, null, 2);
+  drawMap(result.room, preview);
+
+  const seats = (result.room.zones || []).reduce((n, z) => n + (z.seats ? z.seats.length : 0), 0);
+  const lines = [`<p class="ok">Read ${result.room.solids.length} solids, ${result.room.zones.length} zones, ${seats} seats.</p>`];
+  for (const [level, text] of result.warnings) lines.push(`<p class="${level}">${text}</p>`);
+  report.innerHTML = lines.join('');
+}
+
+function handleFile(f) {
+  if (!f) return;
+  const image = new Image();
+  image.onload = () => show(readMap(image));
+  image.onerror = () => { report.innerHTML = '<p class="bad">That file would not load as an image.</p>'; };
+  image.src = URL.createObjectURL(f);
+}
+
+drop.addEventListener('click', () => file.click());
+file.addEventListener('change', () => handleFile(file.files[0]));
+drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', (e) => {
+  e.preventDefault();
+  drop.classList.remove('over');
+  handleFile(e.dataTransfer.files[0]);
+});
+
+document.getElementById('copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(out.value);
+    status.textContent = 'Copied — paste it over data/room.json';
+  } catch {
+    out.select();
+    status.textContent = 'Select-all and copy from the box below.';
+  }
+});
+
+window.CafeLayoutMap = { readMap, drawMap, KEYS };
+</script>
+</body>
+</html>

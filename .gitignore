@@ -1,16 +1,30 @@
-# Dependencies
-/node_modules
+# dependencies
+node_modules/
 
-# Next.js build output
-/.next
-/out
+# next.js
+.next/
+out/
+next-env.d.ts
 
-# Test output
-/test-results
-/playwright-report
+# production
+build/
 
-# Local env files
+# misc
+.DS_Store
+*.pem
+
+# debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env files
+.env
 .env*.local
 
-# OS noise
-.DS_Store
+# vercel
+.vercel
+
+# playwright
+test-results/
+playwright-report/

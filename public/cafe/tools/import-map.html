@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>The Café — layout importer</title>
+<style>
+  body { margin: 0; padding: 24px; background: #16161a; color: #e8e8ec;
+         font: 14px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 18px; color: #9a9aa4; max-width: 74ch; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em;
+       color: #9a9aa4; margin: 24px 0 10px; }
+  #drop {
+    border: 2px dashed #45454f; border-radius: 8px; padding: 28px; text-align: center;
+    color: #9a9aa4; cursor: pointer; background: #1b1b21;
+  }
+  #drop.over { border-color: #c98a4b; color: #e8e8ec; }
+  canvas { image-rendering: pixelated; background: #f0e6d6; max-width: 100%; }
+  button { font: inherit; background: #2f2f37; color: #e8e8ec; border: 1px solid #45454f;
+           border-radius: 5px; padding: 7px 14px; cursor: pointer; }
+  button.primary { background: #4a6f4a; border-color: #5d8a5d; }
+  button:hover { filter: brightness(1.15); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+  textarea { width: 100%; height: 220px; font: 12px/1.4 monospace; background: #101014;
+             color: #cfcfd6; border: 1px solid #45454f; border-radius: 5px; padding: 8px;
+             box-sizing: border-box; }
+  ul { margin: 0; padding-left: 18px; }
+  li.warn { color: #e8b06a; }
+  li.bad { color: #e8796a; }
+  li.ok { color: #8fbf7f; }
+  code { background: #26262c; padding: 1px 4px; border-radius: 3px; }
+  .cols { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+</style>
+</head>
+<body>
+
+<h1>Layout importer</h1>
+<p class="sub">
+  Drop a 640 × 360 PNG drawn in the key colours (see <code>LAYOUT.md</code>) and it becomes
+  <code>room.json</code>. You draw objects only — tables seat two or four along their
+  long sides depending on length,
+  and zones are grown around them, so anywhere you can walk to, you can sit.
+</p>
+
+<div id="drop">Drop your layout PNG here, or click to choose one</div>
+<input id="file" type="file" accept="image/png,image/*" hidden />
+
+<div class="cols">
+  <div>
+    <h2>What it found</h2>
+    <canvas id="preview" width="640" height="360" style="width:640px"></canvas>
+  </div>
+  <div style="min-width:280px;flex:1">
+    <h2>Checks</h2>
+    <ul id="report"><li>Nothing loaded yet.</li></ul>
+  </div>
+</div>
+
+<h2>room.json</h2>
+<div class="row">
+  <button id="copy" class="primary">Copy JSON</button>
+  <button id="download">Download room.json</button>
+  <span id="note" style="color:#9a9aa4"></span>
+</div>
+<textarea id="out" spellcheck="false"></textarea>
+
+<script>
+const W = 640, H = 360;
+
+const KEY = {
+  wall:     { hex: '#000000', rgb: [0, 0, 0] },
+  table:    { hex: '#FF0000', rgb: [255, 0, 0] },
+  tableBig: { hex: '#FF00FF', rgb: [255, 0, 255] },
+  counter:  { hex: '#0000FF', rgb: [0, 0, 255] },
+  bar:      { hex: '#00FFFF', rgb: [0, 255, 255] },
+  jukebox:  { hex: '#FFFF00', rgb: [255, 255, 0] },
+  seat:     { hex: '#00FF00', rgb: [0, 255, 0] },
+  spawn:    { hex: '#FF8000', rgb: [255, 128, 0] },
+};
+
+// Sizes that matter. These match LAYOUT.md; change them in one place.
+const SEAT_OUT = 14;      // seat distance from a table edge
+const SEAT_NORTH = 12;    // a seat above a table sits slightly closer
+const STOOL_OUT = 12;     // stool distance from the bar rail
+const STOOL_SPACING = 48;
+// A table this long down its long side seats four; anything shorter seats two.
+const FOUR_SEATER_MIN = 96;
+const STOOL_END_CLEAR = 24;
+const ZONE_PAD = 24;      // table zone grows this much every side
+const STRIP = 40;         // counter and jukebox standing strip
+const CLEAR_DEPTH = 28;   // floor needed beyond a side for it to count as open
+const OPEN_RATIO = 0.7;   // how much of that band must be floor
+const MIN_AREA = 24;      // ignore specks
+const MIN_DOT_AREA = 4;
+
+let grid = null;          // Uint8Array of key indices, 0 = floor
+const NAMES = Object.keys(KEY);
+
+function classify(imageData) {
+  const out = new Uint8Array(W * H);
+  const d = imageData.data;
+  for (let i = 0; i < W * H; i++) {
+    const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2], a = d[i * 4 + 3];
+    if (a < 128) continue;                       // transparent counts as floor
+    let best = -1, bestDist = 9000;
+    NAMES.forEach((name, index) => {
+      const [kr, kg, kb] = KEY[name].rgb;
+      const dist = (r - kr) ** 2 + (g - kg) ** 2 + (b - kb) ** 2;
+      if (dist < bestDist) { bestDist = dist; best = index; }
+    });
+    // Only claim a pixel if it is genuinely near a key colour; white floor,
+    // cream, greens and greys all fall through to floor.
+    if (bestDist < 9000) out[i] = best + 1;
+  }
+  return out;
+}
+
+// Connected components of one colour, 4-connectivity.
+function components(kind) {
+  const target = NAMES.indexOf(kind) + 1;
+  const seen = new Uint8Array(W * H);
+  const found = [];
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const start = y * W + x;
+      if (grid[start] !== target || seen[start]) continue;
+
+      const pixels = [];
+      const stack = [start];
+      seen[start] = 1;
+
+      while (stack.length) {
+        const index = stack.pop();
+        pixels.push(index);
+        const px = index % W, py = (index / W) | 0;
+        const neighbours = [
+          px > 0 ? index - 1 : -1,
+          px < W - 1 ? index + 1 : -1,
+          py > 0 ? index - W : -1,
+          py < H - 1 ? index + W : -1,
+        ];
+        for (const n of neighbours) {
+          if (n >= 0 && !seen[n] && grid[n] === target) { seen[n] = 1; stack.push(n); }
+        }
+      }
+      found.push(pixels);
+    }
+  }
+  return found;
+}
+
+function bounds(pixels) {
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (const index of pixels) {
+    const x = index % W, y = (index / W) | 0;
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+  }
+  return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+
+// An L-shape must not become one fat rectangle over its empty corner, so each
+// component is cut into horizontal runs and runs that line up vertically are
+// merged back into rectangles.
+function toRects(pixels) {
+  const mask = new Set(pixels);
+  const runs = [];
+  for (const index of pixels) {
+    const x = index % W, y = (index / W) | 0;
+    if (x > 0 && mask.has(index - 1)) continue;  // not the start of a run
+    let end = x;
+    // Stop at the row's end, or a full-width band wraps into the next row and
+    // swallows the whole image.
+    while (end + 1 < W && mask.has(y * W + end + 1)) end++;
+    runs.push({ y, x0: x, x1: end });
+  }
+
+  runs.sort((a, b) => a.y - b.y || a.x0 - b.x0);
+  const rects = [];
+  const used = new Set();
+
+  for (let i = 0; i < runs.length; i++) {
+    if (used.has(i)) continue;
+    const run = runs[i];
+    let height = 1;
+    for (let j = i + 1; j < runs.length; j++) {
+      const next = runs[j];
+      if (used.has(j)) continue;
+      if (next.y !== run.y + height) continue;
+      if (next.x0 !== run.x0 || next.x1 !== run.x1) continue;
+      used.add(j);
+      height++;
+    }
+    rects.push({ x: run.x0, y: run.y, w: run.x1 - run.x0 + 1, h: height });
+  }
+  return rects;
+}
+
+function centre(pixels) {
+  let sx = 0, sy = 0;
+  for (const index of pixels) { sx += index % W; sy += (index / W) | 0; }
+  return { x: Math.round(sx / pixels.length), y: Math.round(sy / pixels.length) };
+}
+
+function isFloor(x, y) {
+  if (x < 0 || y < 0 || x >= W || y >= H) return false;
+  const v = grid[y * W + x];
+  // Seat and spawn dots sit on the floor; they do not block anything.
+  return v === 0 || NAMES[v - 1] === 'seat' || NAMES[v - 1] === 'spawn';
+}
+
+// How much of the band beyond this side is clear floor, 0 to 1.
+function openness(rect, side, depth = CLEAR_DEPTH) {
+  let free = 0, total = 0;
+  const scan = (x, y) => { total++; if (isFloor(x, y)) free++; };
+
+  if (side === 'north') for (let x = rect.x; x < rect.x + rect.w; x++) for (let d = 1; d <= depth; d++) scan(x, rect.y - d);
+  if (side === 'south') for (let x = rect.x; x < rect.x + rect.w; x++) for (let d = 1; d <= depth; d++) scan(x, rect.y + rect.h - 1 + d);
+  if (side === 'west')  for (let y = rect.y; y < rect.y + rect.h; y++) for (let d = 1; d <= depth; d++) scan(rect.x - d, y);
+  if (side === 'east')  for (let y = rect.y; y < rect.y + rect.h; y++) for (let d = 1; d <= depth; d++) scan(rect.x + rect.w - 1 + d, y);
+
+  return total > 0 ? free / total : 0;
+}
+
+// Is there room to stand on this side of a rect?
+function sideIsOpen(rect, side, depth = CLEAR_DEPTH) {
+  return openness(rect, side, depth) >= OPEN_RATIO;
+}
+
+// A table is a two-seater or a four-seater, never a three. Its size decides
+// which: anything long enough to fit two people down one side is a four, the
+// rest are twos.
+//
+// Seats only ever go on the two LONG sides, the way people actually sit at a
+// rectangular table — nobody perches on the end of a bench. If one long side is
+// against a wall the whole party moves to the other one, so the count stays 2
+// or 4 rather than degrading to 1 or 3.
+function tableSeats(rect) {
+  const horizontal = rect.w >= rect.h;
+  const long = horizontal ? rect.w : rect.h;
+  const capacity = long >= FOUR_SEATER_MIN ? 4 : 2;
+
+  const sides = horizontal ? ['north', 'south'] : ['west', 'east'];
+  const open = sides.filter((side) => sideIsOpen(rect, side));
+  // Both long sides blocked: try the ends before giving up entirely.
+  const use = open.length ? open : sides.filter((side) => openness(rect, side) > 0);
+  if (!use.length) return [];
+
+  const perSide = Math.round(capacity / use.length);
+
+  // Evenly spaced along the side: one seat sits at the middle, two sit a
+  // quarter in from each end.
+  const along = (i, n) => {
+    const start = horizontal ? rect.x : rect.y;
+    return Math.round(start + (long * (i + 0.5)) / n);
+  };
+
+  const seats = [];
+  for (const side of use) {
+    for (let i = 0; i < perSide; i++) {
+      const at = along(i, perSide);
+      if (side === 'north') seats.push({ x: at, y: rect.y - SEAT_NORTH });
+      if (side === 'south') seats.push({ x: at, y: rect.y + rect.h + SEAT_OUT });
+      if (side === 'west')  seats.push({ x: rect.x - SEAT_OUT, y: at });
+      if (side === 'east')  seats.push({ x: rect.x + rect.w + SEAT_OUT, y: at });
+    }
+  }
+  return seats;
+}
+
+// Stools run along whichever long side of the rail has floor.
+function barSeats(rect) {
+  const seats = [];
+  const vertical = rect.h >= rect.w;
+
+  const place = (side) => {
+    if (vertical) {
+      const x = side === 'west' ? rect.x - STOOL_OUT : rect.x + rect.w + STOOL_OUT;
+      const first = rect.y + STOOL_END_CLEAR;
+      const last = rect.y + rect.h - STOOL_END_CLEAR;
+      for (let y = first; y <= last; y += STOOL_SPACING) seats.push({ x, y: Math.round(y) });
+    } else {
+      const y = side === 'north' ? rect.y - STOOL_OUT : rect.y + rect.h + STOOL_OUT;
+      const first = rect.x + STOOL_END_CLEAR;
+      const last = rect.x + rect.w - STOOL_END_CLEAR;
+      for (let x = first; x <= last; x += STOOL_SPACING) seats.push({ x: Math.round(x), y });
+    }
+  };
+
+  const sides = vertical ? ['west', 'east'] : ['north', 'south'];
+  for (const side of sides) if (sideIsOpen(rect, side, STOOL_OUT + 12)) place(side);
+  return seats;
+}
+
+function clamp(zone) {
+  const x = Math.max(0, zone.x);
+  const y = Math.max(0, zone.y);
+  return { x, y, w: Math.min(W - x, zone.w), h: Math.min(H - y, zone.h) };
+}
+
+function stripOn(rect, side) {
+  if (side === 'north') return clamp({ x: rect.x, y: rect.y - STRIP, w: rect.w, h: STRIP });
+  if (side === 'south') return clamp({ x: rect.x, y: rect.y + rect.h, w: rect.w, h: STRIP });
+  if (side === 'west')  return clamp({ x: rect.x - STRIP, y: rect.y, w: STRIP, h: rect.h });
+  return clamp({ x: rect.x + rect.w, y: rect.y, w: STRIP, h: rect.h });
+}
+
+function build() {
+  const room = { solids: [], zones: [], spawn: { x: 40, y: 90 } };
+  const notes = [];
+
+  const collect = (kind) => components(kind)
+    .filter((pixels) => pixels.length >= MIN_AREA)
+    .flatMap((pixels) => toRects(pixels).filter((r) => r.w >= 3 && r.h >= 3));
+
+  // Walls and every other solid. Each solid carries what it is, so the art
+  // generator never has to guess from geometry.
+  for (const rect of collect('wall')) room.solids.push({ ...rect, kind: 'wall' });
+
+  // Tables: the object is one rect; seats go on every open side.
+  const tableRects = [];
+  for (const kind of ['table', 'tableBig']) {
+    for (const pixels of components(kind)) {
+      if (pixels.length < MIN_AREA) continue;
+      const rect = bounds(pixels);
+      tableRects.push(rect);
+      room.solids.push({ ...rect, kind: 'table' });
+      const seats = tableSeats(rect);
+      room.zones.push({
+        type: 'table',
+        ...clamp({ x: rect.x - ZONE_PAD, y: rect.y - ZONE_PAD, w: rect.w + ZONE_PAD * 2, h: rect.h + ZONE_PAD * 2 }),
+        seats,
+      });
+      if (!seats.length) notes.push(['bad', `A table at ${rect.x},${rect.y} has no side with room to sit.`]);
+    }
+  }
+
+  // Counter: every open face becomes somewhere to order.
+  for (const pixels of components('counter')) {
+    if (pixels.length < MIN_AREA) continue;
+    for (const rect of toRects(pixels)) {
+      if (rect.w < 3 || rect.h < 3) continue;
+      room.solids.push({ ...rect, kind: 'counter' });
+      for (const side of ['north', 'south', 'west', 'east']) {
+        if (sideIsOpen(rect, side, STRIP)) room.zones.push({ type: 'counter', ...stripOn(rect, side) });
+      }
+    }
+  }
+
+  // Bar rail: stools along the open side, zone covering them.
+  for (const pixels of components('bar')) {
+    if (pixels.length < MIN_AREA) continue;
+    for (const rect of toRects(pixels)) {
+      if (rect.w < 3 || rect.h < 3) continue;
+      room.solids.push({ ...rect, kind: 'bar' });
+      const seats = barSeats(rect);
+      if (!seats.length) { notes.push(['warn', `A bar rail at ${rect.x},${rect.y} has no room for stools.`]); continue; }
+      const xs = seats.map((s) => s.x), ys = seats.map((s) => s.y);
+      room.zones.push({
+        type: 'bar',
+        ...clamp({
+          x: Math.min(...xs) - 20, y: Math.min(...ys) - 20,
+          w: Math.max(...xs) - Math.min(...xs) + 40, h: Math.max(...ys) - Math.min(...ys) + 40,
+        }),
+        seats,
+      });
+    }
+  }
+
+  // Jukebox: one standing strip on its most open side.
+  for (const pixels of components('jukebox')) {
+    if (pixels.length < MIN_AREA) continue;
+    const rect = bounds(pixels);
+    room.solids.push({ ...rect, kind: 'jukebox' });
+    // People queue at the jukebox, so it faces whichever side has the most room
+    // to stand rather than the first side that happens to be clear.
+    const side = ['south', 'west', 'east', 'north']
+      .map((name) => ({ name, room: openness(rect, name, STRIP * 2) }))
+      .sort((a, b) => b.room - a.room)[0];
+    if (side && side.room > 0.4) room.zones.push({ type: 'jukebox', ...stripOn(rect, side.name) });
+    else notes.push(['warn', `The jukebox at ${rect.x},${rect.y} has no approach.`]);
+  }
+
+  // Hand-placed seats win: each replaces the automatic seats of its zone.
+  const dots = components('seat').filter((p) => p.length >= MIN_DOT_AREA).map(centre);
+  if (dots.length) {
+    const seating = room.zones.filter((z) => z.seats);
+    for (const zone of seating) zone.seats = [];
+    for (const dot of dots) {
+      let best = null, bestDistance = Infinity;
+      for (const zone of seating) {
+        const cx = zone.x + zone.w / 2, cy = zone.y + zone.h / 2;
+        const distance = (cx - dot.x) ** 2 + (cy - dot.y) ** 2;
+        if (distance < bestDistance) { bestDistance = distance; best = zone; }
+      }
+      if (best) best.seats.push(dot);
+      else notes.push(['warn', `A seat dot at ${dot.x},${dot.y} is not near any table or bar.`]);
+    }
+    notes.push(['ok', `${dots.length} hand-placed seats used instead of the automatic ones.`]);
+  }
+
+  const spawnDots = components('spawn').filter((p) => p.length >= MIN_DOT_AREA).map(centre);
+  if (spawnDots.length) room.spawn = spawnDots[0];
+  else notes.push(['warn', 'No spawn dot — players will arrive at 40,90.']);
+
+  return { room, notes };
+}
+
+// --- checks ----------------------------------------------------------------
+function check(room, notes) {
+  const hits = (box) => room.solids.some((s) =>
+    box.x < s.x + s.w && box.x + box.w > s.x && box.y < s.y + s.h && box.y + box.h > s.y);
+  const foot = (p) => ({ x: p.x - 8, y: p.y - 8, w: 16, h: 8 });
+
+  const seats = room.zones.flatMap((z) => z.seats || []);
+  const stuck = seats.filter((s) => hits(foot(s)));
+  if (stuck.length) notes.push(['bad', `${stuck.length} seats are inside a solid — nobody can reach them.`]);
+
+  if (hits(foot(room.spawn))) notes.push(['bad', 'The spawn point is inside a solid.']);
+
+  // Narrow gaps between objects, measured along each axis.
+  let tight = 0;
+  const where = [];
+  for (let i = 0; i < room.solids.length; i++) {
+    for (let j = i + 1; j < room.solids.length; j++) {
+      const a = room.solids[i], b = room.solids[j];
+      const overlapY = a.y < b.y + b.h && a.y + a.h > b.y;
+      const overlapX = a.x < b.x + b.w && a.x + a.w > b.x;
+      // Under 10px is flush — furniture against a wall, which is deliberate.
+      // Between 10 and 48 is the bad case: it looks like a way through and isn't.
+      const narrow = (gap) => gap >= 10 && gap < 48;
+      if (overlapY) {
+        const gap = b.x > a.x ? b.x - (a.x + a.w) : a.x - (b.x + b.w);
+        if (narrow(gap)) { tight++; where.push(`${a.kind || 'solid'}/${b.kind || 'solid'} ${gap}px`); }
+      } else if (overlapX) {
+        const gap = b.y > a.y ? b.y - (a.y + a.h) : a.y - (b.y + b.h);
+        if (narrow(gap)) { tight++; where.push(`${a.kind || 'solid'}/${b.kind || 'solid'} ${gap}px`); }
+      }
+    }
+  }
+  if (tight) notes.push(['warn', `${tight} gaps are too narrow to walk through but wide enough to look like a way through: ${where.slice(0, 6).join(', ')}.`]);
+
+  notes.push(['ok', `${room.solids.length} solids, ${room.zones.length} zones, ${seats.length} seats.`]);
+  if (seats.length < 8) notes.push(['warn', 'Under 8 seats — the room will feel empty at capacity.']);
+  return notes;
+}
+
+// --- preview ---------------------------------------------------------------
+function preview(room) {
+  const ctx = document.getElementById('preview').getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#f0e6d6';
+  ctx.fillRect(0, 0, W, H);
+
+  for (const s of room.solids) {
+    ctx.fillStyle = '#33302c';
+    ctx.fillRect(s.x, s.y, s.w, s.h);
+  }
+  for (const z of room.zones) {
+    ctx.fillStyle = 'rgba(64,132,255,0.22)';
+    ctx.fillRect(z.x, z.y, z.w, z.h);
+    ctx.strokeStyle = 'rgba(108,164,255,0.9)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(z.x + 0.5, z.y + 0.5, z.w - 1, z.h - 1);
+    ctx.fillStyle = '#1d6b2f';
+    for (const seat of z.seats || []) {
+      ctx.beginPath();
+      ctx.arc(seat.x, seat.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.fillStyle = '#c2493d';
+  ctx.fillRect(room.spawn.x - 3, room.spawn.y - 3, 6, 6);
+}
+
+// --- wiring ----------------------------------------------------------------
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+const out = document.getElementById('out');
+const report = document.getElementById('report');
+
+function run(image) {
+  const scratch = document.createElement('canvas');
+  scratch.width = W;
+  scratch.height = H;
+  const ctx = scratch.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(image, 0, 0, W, H);
+
+  grid = classify(ctx.getImageData(0, 0, W, H));
+
+  const { room, notes } = build();
+  if (image.naturalWidth !== W || image.naturalHeight !== H) {
+    notes.unshift(['warn', `Image was ${image.naturalWidth} × ${image.naturalHeight}; scaled to ${W} × ${H}. Export at exactly ${W} × ${H} for pixel-exact results.`]);
+  }
+  check(room, notes);
+
+  preview(room);
+  out.value = JSON.stringify(room, null, 2);
+  report.innerHTML = notes.map(([kind, text]) => `<li class="${kind}">${text}</li>`).join('');
+}
+
+function load(file) {
+  const image = new Image();
+  image.onload = () => run(image);
+  image.src = URL.createObjectURL(file);
+}
+
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => e.target.files[0] && load(e.target.files[0]));
+['dragenter', 'dragover'].forEach((type) =>
+  drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach((type) =>
+  drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', (e) => e.dataTransfer.files[0] && load(e.dataTransfer.files[0]));
+
+document.getElementById('copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(out.value);
+    document.getElementById('note').textContent = 'Copied — paste it over data/room.json';
+  } catch {
+    out.select();
+    document.getElementById('note').textContent = 'Select-all and copy from the box.';
+  }
+});
+
+document.getElementById('download').addEventListener('click', () => {
+  const blob = new Blob([out.value], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.download = 'room.json';
+  link.href = URL.createObjectURL(blob);
+  link.click();
+});
+</script>
+</body>
+</html>
