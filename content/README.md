@@ -23,6 +23,8 @@ is the whole loop — no terminal, no local setup, no cost.
 | `learnings.json` | Stuff I learned | A list, newest shown first |
 | `thoughts.md` | Train of thought | Markdown — use `##` for separate pieces |
 | `contact.json` | Sticky note + email | Note, email, and links |
+| `cafe.md` | The cafe's welcome | Markdown — just write |
+| `cafe.json` | The cafe's menu, rules, ambience | Lists |
 
 ## The `.md` files
 
@@ -76,3 +78,25 @@ GitHub shows a red ✗ next to your commit if that happens. The fix is
 almost always a comma — either one missing, or one too many after the last
 item. Your previous version stays live until the new one builds cleanly, so
 a typo can't take the site down — it just means your edit hasn't appeared yet.
+
+## The cafe (`cafe.json`)
+
+Three things live in this one file:
+
+- `menu` — what someone can order. Each item has a `name`, a one-line
+  `description`, and `minutes` (how long the timer runs). Add, remove, or
+  retime them freely.
+- `houseRules` — a plain list of lines.
+- `nowPlaying` — one sentence about what the room sounds like.
+
+A new menu item is one block, copied from an existing one:
+
+```json
+{
+  "name": "Second cup",
+  "description": "When the first one didn't finish the job.",
+  "minutes": 30
+}
+```
+
+`minutes` is a number, so it does **not** take quotes.

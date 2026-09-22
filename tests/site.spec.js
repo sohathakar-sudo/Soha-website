@@ -106,17 +106,39 @@ test.describe("scroll indicator", () => {
 });
 
 test.describe("icon rail", () => {
-  test("marks the current page and disables unbuilt ones", async ({ page }) => {
+  test("marks the current page", async ({ page }) => {
     await page.goto("/");
 
     await expect(page.getByTestId("icon-home")).toHaveAttribute(
       "aria-current",
       "page"
     );
-    await expect(page.getByTestId("icon-reading")).toHaveAttribute(
-      "aria-disabled",
-      "true"
-    );
+  });
+
+  test("only lists pages that exist", async ({ page }) => {
+    await page.goto("/");
+
+    // The rail never advertises a room you can't walk into: every entry is
+    // a real route, so nothing renders disabled.
+    const links = page.getByTestId("icon-nav").locator("a");
+    await expect(links).toHaveCount(2);
+    await expect(page.getByTestId("icon-nav").locator("[aria-disabled]")).toHaveCount(0);
+  });
+
+  test("opens the cafe from the Garamond wordmark on the rail", async ({
+    page,
+  }) => {
+    await page.goto("/");
+
+    const door = page.getByTestId("icon-cafe");
+    await expect(door).toHaveText("Cafe");
+    await expect(door).toHaveCSS("font-style", "italic");
+
+    // The cafe is a static folder, not a Next route: /cafe redirects into it,
+    // and what you land on is the game's own page rather than the site shell.
+    await door.click();
+    await expect(page).toHaveURL(/\/cafe\/index\.html$/);
+    await expect(page.locator("#game")).toBeVisible();
   });
 });
 
