@@ -93,8 +93,8 @@ Prop ideas, with sizes that suit the room:
 | Pendant lamp | 16 × 20 | foreground, above tables |
 | Hedge / fence | 16 deep | garden edge |
 | Fairy lights | any length | garden, foreground |
-| Bird | 8 × 8 | garden — pairs with the chirping |
-| Speaker | 10 × 14 | near the jukebox |
+| Bird | 8 × 8 | garden — **the chirping exists now**, so this one has something to be the face of |
+| Speaker | 10 × 14 | near the jukebox — **the music exists now**, and it comes from a point in the room, so a speaker is where it looks like it comes from |
 | Feedback box | 12 × 12 | on the counter |
 | Tip jar | 8 × 10 | on the counter |
 | Notice board | 32 × 24 | wall — a home for the to-do list idea |
@@ -117,12 +117,18 @@ commit to a style for the other seven.
 
 Small, and easy to forget until the room feels unfinished without it.
 
+No mute or volume icon: the café deliberately has no audio controls of its own —
+the operating system and the browser tab already do that job.
+
+The jukebox now wants a drawn *on* and *off* state, or a small indicator beside
+it. Enter toggles the music and the only feedback is the music itself, which is
+thin when you are standing far enough away that it was already quiet.
+
 | Element | Size | For |
 |---|---|---|
 | Coffee cup icon | 8 × 8 | the HUD counter |
 | Speech bubble | 9-slice, ~16 × 12 min | "say hi", hover copy |
 | To-do list icon | 24 × 24 | bottom-right corner |
-| Mute / volume icon | 24 × 24 | two states |
 | Settings icon | 24 × 24 | |
 | Voice chat icon | 24 × 24 | three states: off, listening, talking |
 | Focus timer pip | 8 × 8 | beside a seated person, or in the HUD |

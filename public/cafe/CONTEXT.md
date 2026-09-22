@@ -3,7 +3,7 @@
 Paste-into-a-Claude-Project brief. Everything a fresh session needs to be useful
 without re-deriving decisions or re-litigating settled ones.
 
-Last updated: 21 September 2026.
+Last updated: 22 September 2026.
 
 ---
 
@@ -86,6 +86,9 @@ public/cafe/
     render.js           background, y-sorted sprites, foreground
     sprites.js          image loading (becomes faces.js)
     ui.js               title screen and HUD
+    audio.js            the AudioContext, the master gain, positional volume
+    sounds.js           one-shots: every recipe, and recorded overrides
+    ambience.js         the three loops and their scheduler
     debug.js            the editor overlay
     net.js              multiplayer stub
     config.js           every tunable in one place
@@ -93,6 +96,7 @@ public/cafe/
     room.json           solids, zones, spawn — generated, not hand-written
     layout-map.png      the drawing room.json came from; the real source
   assets/               room-bg.png, room-fg.png, face-01..08.png
+    audio/manifest.json which sounds have a real recording behind them
   tools/
     make-placeholders.html   room art + placeholder faces
     layout-template.html     Figma starter PNG
@@ -175,7 +179,18 @@ editor that exports room.json.
 | ✅ 4 Bob | distance-driven so it cannot desync from speed, settles over ~200ms, still when sitting |
 | ✅ 5 Prep tool | `tools/prep-faces.html` — trims, fits and centres any drawing to 32x32 |
 | ✅ 6 Title + cleanup | multiplayer audit and README rewrite (the face picker and the `catId` → `faceId` migration landed early, in phase 3) |
-| ⬜ 7 Jukebox | zone exists, no behaviour |
+| ✅ 7 Jukebox | Enter stops and starts the music; the prompt says which |
+
+**Day 3 — sound. Complete.** The café is audible. Nothing exists before the
+player's first click — not a suspended context, no context at all — so autoplay
+is impossible by construction rather than by policy. Seven one-shots (click,
+pick, door, step, sit, stand, coffee) and three loops (room tone, jukebox,
+garden), all generated at runtime out of oscillators and filtered noise: no
+files, no dependency, nothing to license. Sounds are driven by the difference in
+a player's state across a tick, never from `applyInteraction`, so a player
+arriving over the wire will sound without new code, and everyone but you is
+heard at the volume their distance earns. A footstep is a completed bob cycle,
+so the sound and the sight of a step are the same number.
 
 **The faces build is finished.** All eight hand-drawn faces are in, bobbing as
 they walk. No placeholder art remains for the people; only the room is still
@@ -201,6 +216,9 @@ garden through a doorway, L of bar rail with stools. **21 seats.**
 | Layout comes from a drawing, not from code | I was inventing layouts nobody wanted |
 | Small talk over voice chat | see `BACKLOG.md`; voice means consent, moderation and a bill that scales with popularity, for a feeling text mostly delivers |
 | No dependencies, no build step | the folder must stay droppable anywhere |
+| No in-game mute or volume control | the OS has a volume key and the browser has a tab mute; both are better than anything the café could draw in a corner, and neither needs building, persisting or explaining |
+| Sound synthesized, not sampled | the same move `make-placeholders.html` makes for the room: something real to work against now. Recordings drop in later via `assets/audio/manifest.json` with no code change |
+| Sound driven by state changes, not by input | `applyMovement` and `applyInteraction` must stay pure for the server; reading the difference in `main.js` also makes remote players audible for free |
 
 ---
 
@@ -236,7 +254,19 @@ garden through a doorway, L of bar rail with stools. **21 seats.**
 - Focus time is the biggest idea and undefined: what does the end of a session
   actually do, and are "beepers" a timer ending or something you send someone?
 - The empty room: someone arriving alone at 3am must not feel like they found an
-  abandoned site. Decide before multiplayer architecture sets around it.
+  abandoned site. Decide before multiplayer architecture sets around it. The
+  room tone is the first answer to this — it is what they hear instead of
+  nothing.
+- **Whose jukebox is it?** Switching it off currently switches it off for
+  everyone in the room, which is what a real café does and is also one stranger
+  silencing another. The alternative is a per-listener preference that does not
+  travel, which is safer and less like a place.
+- The middle of the room is quiet: too far for the jukebox, too far for the
+  garden, with only the room tone underneath. That may be exactly right — you
+  are between two things — or the falloff radii in `AUDIO.ambience` may want
+  widening. A judgement for ears, not for code.
+- The music is four chords at 68bpm generated at runtime. Whether the café ever
+  gets real tracks is a question about taste and rights, not about code.
 - `main` still has a placeholder `app/cafe/page.jsx` holding the `/cafe` URL.
   When the game takes that address, that page and the redirect in
   `next.config.mjs` come out together.

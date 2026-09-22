@@ -33,6 +33,7 @@ nothing about its host.
 | `W A S D` or arrow keys | walk |
 | `Enter` at a table or bar | sit at the nearest free seat |
 | `Enter` at the counter | buy a coffee |
+| `Enter` at the jukebox | stop the music, or start it again |
 | any direction key while seated | stand up |
 | `` ` `` (backtick) | the debug editor |
 
@@ -109,6 +110,53 @@ in the café's three colours — cream floor, charcoal structure, red for accent
 Furniture follows the data: each solid is drawn as whatever kind it says it is.
 
 `ARTWORK.md` lists everything that needs drawing, at the size it ships at.
+
+---
+
+## Sound
+
+The café hums, plays something on the jukebox, and lets the garden in through
+the doorway. Walk between them and it crossfades, because the jukebox and the
+garden are at opposite ends of a 640px room.
+
+**Nothing makes a sound until you click.** Browsers refuse to start audio
+outside a user gesture, so rather than starting one muted and hoping, there is
+no AudioContext at all until the first click on the title screen.
+
+**There is no mute button and no volume slider.** Your operating system has a
+volume key and your browser can mute the tab, and both are better than anything
+this café could draw in a corner.
+
+### There are no audio files
+
+Every sound is built out of oscillators and filtered noise at the moment it
+plays — seven one-shots in `src/sounds.js`, three loops in `src/ambience.js`.
+No download, no dependency, nothing to license. It is what
+`tools/make-placeholders.html` does for the room art: something real to work
+against, replaced by the real thing later.
+
+To replace one with a recording:
+
+1. Drop `assets/audio/<name>.mp3` in — `door`, `step`, `sit`, `stand`,
+   `coffee`, `click` or `pick`.
+2. Add that name to the `files` list in `assets/audio/manifest.json`.
+
+No code changes. The manifest exists so the café makes exactly one request at
+startup instead of seven failing ones.
+
+### Tuning it
+
+Every number is in `AUDIO` in `src/config.js`: the mix, and the `near` and `far`
+radii that decide how far the jukebox carries. `near` is where a loop is at full
+volume, `far` where it reaches silence.
+
+Footsteps have no setting. One plays every time the walk bob completes a cycle,
+so a footfall lands exactly when the face touches down — the sound of a step and
+the sight of one are the same number, and cannot drift apart.
+
+In the browser console, `cafe.ambience.levels()` reports what each loop is
+currently sitting at, which is the only way to check positional audio without
+ears.
 
 ---
 

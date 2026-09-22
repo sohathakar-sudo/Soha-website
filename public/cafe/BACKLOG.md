@@ -32,22 +32,33 @@ faces, then props and interface icons.
 
 ---
 
-## Sound
+## Sound — mostly done
 
-All of it needs the same two things first: a **mute control that persists**, and
-a rule that **nothing plays until the player interacts** — browsers block
-autoplay, and a site that makes noise on load is rude.
+The café is audible. Nothing plays until the player's first click, which is
+guaranteed by there being no AudioContext at all before then.
 
-| | |
+The mute toggle came off this list rather than getting built: the operating
+system's volume key and the browser's tab mute already do it, and better. One
+less control to draw, persist and explain.
+
+| Done | |
 |---|---|
-| Mute toggle + persisted preference | S — do this first |
-| Jukebox music, curated tracks | M — must be yours or licensed |
-| Jukebox selection screen on Enter | M |
-| Volume by x position, so music fades into the garden | S |
-| Garden chirping, looped, volume by position | S |
-| Door bell when you enter the café | S |
-| Click sound on every click | S |
-| Footstep and sit sounds | S |
+| ✅ Nothing plays until the player interacts | no context exists before the first click |
+| ✅ Door bell when you enter the café | |
+| ✅ Click sound on every click | |
+| ✅ Footstep, sit and stand sounds | a footstep is one completed bob cycle |
+| ✅ Coffee at the counter | |
+| ✅ Volume by position, so music fades into the garden | measured 0.30 → 0.05 → 0 across the room |
+| ✅ Garden chirping, looped, volume by position | irregular on purpose; a bird on a timer stops sounding like a bird |
+| ✅ Room tone | the floor that stops an empty café sounding broken |
+| ✅ Jukebox on and off at the machine | |
+
+| Left | |
+|---|---|
+| Jukebox music, curated tracks | M — must be yours or licensed. The generated four chords hold the place; `assets/audio/manifest.json` is where a real file gets named |
+| Jukebox selection screen on Enter | M — Enter currently toggles; a screen would need more than one track to choose between |
+| Footstep variety by surface | S — one sound for floorboards and garden path both |
+| Other people's sounds over the wire | free — already routed by distance, needs only multiplayer |
 
 ## Focus time — the reason to be there
 
@@ -134,7 +145,7 @@ it gets built.
 - Favicon and page title
 - Open Graph tags
 - Tab-away handling — a backgrounded tab throttles the loop; a returning player
-  shouldn't teleport or stick
+  shouldn't teleport or stick (audio already suspends and resumes with the tab)
 - Your name on it somewhere unobtrusive, with a link home and a one-line
   "what is this"
 - The empty room: someone arriving alone at 3am must not feel like they found an
@@ -147,8 +158,9 @@ it gets built.
 1. Finish the faces phases — the game is mid-change until they land.
 2. Props system, then the floor plate. The room stops looking like a diagram.
 3. Walk speed on Shift. Ten minutes, and the bigger room needs it.
-4. Mute control, then the door bell and garden chirping. Small, and sound does
-   more for atmosphere than any amount of extra furniture.
+4. ~~Mute control, then the door bell and garden chirping.~~ **Done** — and it
+   was right that sound does more for atmosphere than any amount of extra
+   furniture. The mute control turned out not to be needed at all.
 5. Side panel and feedback box — before anyone else sees it.
 6. Focus time. The biggest idea, and the one that decides what the café is for.
 7. Jukebox with curated tracks.
