@@ -319,6 +319,11 @@ garden through a doorway, L of bar rail with stools. **21 seats.**
   right (walk speed, bob amount, zone generosity), does it *look* right (the
   drawings, the palette), and the layout itself.
 
+**Multiplayer:** sketched in `MULTIPLAYER.md`. The short version is that a relay
+is enough — nobody has a motive to cheat at sitting in a chair — and that the
+`net.js` stub currently assumes the opposite, so its three functions change
+meaning when it lands.
+
 **Companion docs:** `LAYOUT.md` (dimensions and the colour key), `ARTWORK.md`
 (what needs drawing), `BACKLOG.md` (everything not yet built, with sizes and a
 suggested order), `README.md` (running, deploying, swapping art).

@@ -128,7 +128,7 @@ what keeps "no memory" from meaning "no recourse".
 
 | | |
 |---|---|
-| Multiplayer — server, snapshots, interpolation, reconciliation | L |
+| Multiplayer — sketched in `MULTIPLAYER.md` as a **relay**, not an authority: no server of our own, a free pub/sub tier, and send-on-change rather than on a clock. That last part is the whole cost story — a café is people sitting still, and a clock-driven design pays to repeat "still sitting" for an hour | M, not L |
 | Voice chat you can tune into and leave | L |
 
 If small talk lands well, the case for voice weakens considerably: it delivers
