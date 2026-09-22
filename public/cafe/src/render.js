@@ -38,7 +38,14 @@ export function drawPlayers(ctx, players, renderStates) {
     // The laptop goes down first: it is on the table, and the person is on the
     // near side of it. Drawn before the shadow so nothing of theirs sits under
     // it.
-    if (state.deskAt) drawProp(ctx, 'laptop', state.deskAt.x, state.deskAt.y);
+    //
+    // It is turned to face whoever is sitting at it. The drawing has its screen
+    // up and its keyboard down, which is a laptop facing south — so it needs a
+    // half turn away from the direction its owner is looking, whichever way
+    // they sat.
+    if (state.deskAt) {
+      drawProp(ctx, 'laptop', state.deskAt.x, state.deskAt.y, (state.faceAngle || 0) + Math.PI);
+    }
 
     drawShadow(ctx, player.x, player.y, bob);
     drawFace(ctx, player.faceId, player.x, player.y, bob, state.faceAngle || 0);

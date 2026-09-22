@@ -160,9 +160,22 @@ export function drawFace(ctx, faceId, x, y, bob = 0, angle = 0) {
 }
 
 // A prop resting on a surface or held beside someone. Drawn at its natural
-// size, centred on the point given.
-export function drawProp(ctx, name, x, y) {
+// size, centred on the point given, and turned if it has a front.
+export function drawProp(ctx, name, x, y, angle = 0) {
   const image = propImage(name);
   if (!image) return;
-  ctx.drawImage(image, Math.round(x - image.width / 2), Math.round(y - image.height / 2));
+
+  const left = Math.round(x - image.width / 2);
+  const top = Math.round(y - image.height / 2);
+
+  if (!angle) {
+    ctx.drawImage(image, left, top);
+    return;
+  }
+
+  ctx.save();
+  ctx.translate(left + image.width / 2, top + image.height / 2);
+  ctx.rotate(angle);
+  ctx.drawImage(image, -image.width / 2, -image.height / 2);
+  ctx.restore();
 }
