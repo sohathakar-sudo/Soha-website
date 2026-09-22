@@ -1,7 +1,7 @@
 import { VIEW, PATHS, AUDIO } from './config.js';
 import { createLoop } from './loop.js';
 import { attachInput, readInput, consumePress } from './input.js';
-import { createPlayer, applyMovement, applyInteraction, isSeated } from './player.js';
+import { createPlayer, applyMovement, applyInteraction, applyTime, isSeated, isWorking } from './player.js';
 import { loadFaces, loadImage, createRenderState, advanceBob } from './faces.js';
 import { drawBackground, drawForeground, drawPlayers } from './render.js';
 import { loadRoom } from './room.js';
@@ -108,6 +108,41 @@ function takenSeats(player) {
   return taken;
 }
 
+const between = (range) => range.min + Math.random() * (range.max - range.min);
+
+// A sound that repeats for as long as something stays true — someone working at
+// a table, someone with a coffee in front of them. `key` names the countdown in
+// render state; null there means the thing is not happening, so the next time it
+// starts it waits out a settle first rather than firing on the instant.
+function repeating(renderState, key, active, schedule, dt, fire) {
+  if (!active) {
+    renderState[key] = null;
+    return;
+  }
+
+  if (renderState[key] === null) {
+    renderState[key] = between(schedule.settle);
+    return;
+  }
+
+  renderState[key] -= dt;
+  if (renderState[key] <= 0) {
+    renderState[key] = between(schedule.every);
+    fire();
+  }
+}
+
+// Everybody has a habit: even faces type, odd faces write longhand. Derived from
+// faceId rather than stored, so it needs nothing synced and somebody changing
+// face mid-session simply changes habit. One flurry in five is the other one,
+// because nobody only ever does the one thing.
+function deskSound(player) {
+  const types = player.faceId % 2 === 0;
+  const usual = types ? 'type' : 'scribble';
+  const other = types ? 'scribble' : 'type';
+  return Math.random() < 0.2 ? other : usual;
+}
+
 // The doorway a point is standing in, or null. Doors are not zones in
 // room.json — the layout colour key has no colour for one — so they are matched
 // against the list in config rather than through room.zoneAt.
@@ -136,7 +171,7 @@ function loudnessOf(player) {
 // the difference here instead keeps them clean and has a second benefit: a
 // player arriving over the wire moves through exactly the same path, so other
 // people's footsteps and chairs will sound without a line of new code.
-function soundChanges(player, before, renderState, footfallsBefore) {
+function soundChanges(player, before, renderState, footfallsBefore, dt) {
   // Which doorway they are in is tracked whether or not anybody can hear it.
   // Otherwise someone who walks through a door while out of earshot slams it
   // the moment they come back into range.
@@ -174,6 +209,23 @@ function soundChanges(player, before, renderState, footfallsBefore) {
   if (renderState.footfalls > footfallsBefore) {
     play('step', loudness);
   }
+
+  // Somebody getting on with something. isWorking is the whole hook for the
+  // focus timer: narrow it and all of this stops when the session does.
+  repeating(renderState, 'nextDesk', isWorking(player), AUDIO.desk, dt, () => {
+    play(deskSound(player), loudness);
+  });
+
+  // And drinking it, which only happens at a table. Standing up ends it; a cup
+  // with time left on it picks up again when they sit back down.
+  repeating(
+    renderState,
+    'nextSip',
+    isWorking(player) && player.holdingCoffee,
+    AUDIO.sipping,
+    dt,
+    () => play(Math.random() < AUDIO.sipping.cutleryChance ? 'cutlery' : 'sip', loudness),
+  );
 }
 
 // One player, one tick. Identical for everyone in the map: whether the input
@@ -183,7 +235,11 @@ function stepPlayer(player, input, dt) {
   const renderState = renderStates.get(player.id);
   const footfallsBefore = renderState.footfalls;
 
-  // Interactions first: they can stand a seated player up in time for the
+  // Time passes before anything else, so a coffee bought this tick gets its
+  // full two minutes rather than being a tick short of them.
+  Object.assign(player, applyTime(player, dt));
+
+  // Interactions next: they can stand a seated player up in time for the
   // same tick's movement.
   Object.assign(player, applyInteraction(player, input, room, takenSeats(player)));
 
@@ -197,7 +253,7 @@ function stepPlayer(player, input, dt) {
   // Render state last, so it reacts to where the player actually ended up.
   advanceBob(renderState, player, dt);
 
-  soundChanges(player, before, renderState, footfallsBefore);
+  soundChanges(player, before, renderState, footfallsBefore, dt);
 }
 
 // --- Loop ------------------------------------------------------------------
@@ -222,7 +278,7 @@ function update(dt) {
 
   // The room hums, the jukebox plays and the garden chirps from wherever they
   // are; this is the one place that tells them where the listener is standing.
-  ambience.update(me, room, me.music);
+  ambience.update(me, me.music);
 }
 
 // What Enter would do from where the player is standing.
@@ -310,8 +366,9 @@ async function boot() {
     x: room.spawn.x,
     y: room.spawn.y,
   });
+  // The tally is a lifetime count and is remembered. The cup is not: a coffee
+  // does not survive a reload, so a returning player starts with empty hands.
   me.coffees = readCoffees();
-  me.holdingCoffee = me.coffees > 0;
   savedCoffees = me.coffees;
   addPlayer(me);
 

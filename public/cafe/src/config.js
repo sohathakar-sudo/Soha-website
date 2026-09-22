@@ -15,6 +15,14 @@ export const LOOP = {
   maxFrameSeconds: 0.25,
 };
 
+// A coffee is a thing with a lifetime, not a number that only goes up.
+export const COFFEE = {
+  // Seconds a cup is good for, from the moment it is bought. It counts down
+  // whether you are sitting or not — it is going cold while you are up at the
+  // counter too.
+  lasts: 120,
+};
+
 export const PLAYER = {
   speed: 60, // pixels per second
   // (x, y) is the ground point: the spot on the floor the player occupies.
@@ -88,6 +96,27 @@ export const AUDIO = {
     coffee: 0.40,
     doorOpen: 0.34,
     doorClose: 0.32,
+    scribble: 0.22,
+    type: 0.20,
+    sip: 0.26,
+    cutlery: 0.24,
+  },
+
+  // Working at a table. `settle` is the wait before the first one after sitting
+  // down: somebody who starts typing the instant they land reads as a machine
+  // rather than as a person getting their things out.
+  desk: {
+    every: { min: 2.5, max: 6 },
+    settle: { min: 1.5, max: 3 },
+  },
+
+  // Drinking it. Only ever at a table, so standing up ends it and sitting back
+  // down with the same cup picks it up again.
+  sipping: {
+    every: { min: 12, max: 28 },
+    settle: { min: 4, max: 10 },
+    // How often a sip is instead the cup meeting its saucer.
+    cutleryChance: 0.25,
   },
 
   // Doorways that creak when someone goes through them. Like the garden
@@ -110,28 +139,18 @@ export const AUDIO = {
   // the room from yourself.
   nearby: { near: 40, far: 280 },
 
-  // Looped ambience. `near` is the radius inside which an emitter plays at full
-  // volume, `far` the radius where it reaches silence.
+  // Looped ambience.
+  //
+  // A space has one volume throughout. A café does not get quieter because you
+  // walked to the counter, so there is no distance falloff inside a room and no
+  // emitter to measure from — only which side of the dividing wall you are on.
+  // `space` says where a loop belongs; `throughDoor` is the ceiling on what
+  // reaches the other side, measured from the doorway, since the opening is the
+  // only route sound has through eight pixels of solid wall.
   ambience: {
     roomTone: { volume: 0.10 },
-    music:    { volume: 0.30, near: 70, far: 330 },
-    // Two radii, because a wall is between you and the birds. `near`/`far` is
-    // what you hear standing in the garden itself. `throughDoor` is the ceiling
-    // on what reaches you in the café, measured from the doorway — so the
-    // garden fades in as you approach the opening and is gone by mid-room,
-    // instead of bleeding through eight pixels of solid wall.
-    garden:   { volume: 0.26, near: 60, far: 270, throughDoor: { near: 24, far: 90 } },
-  },
-
-  // Where the positional loops come from.
-  emitters: {
-    // Read from the jukebox zone in room.json when there is one, so moving the
-    // jukebox in the drawing moves the music. This is only the fallback.
-    jukebox: { x: 80, y: 64 },
-    // The garden has no zone: the layout colour key has no garden colour, so
-    // the importer has nothing to emit for it. Its centre is set by hand here
-    // instead — move it if the drawing's garden moves.
-    garden: { x: 566, y: 204 },
+    music:    { volume: 0.30, space: 'cafe',   throughDoor: { near: 24, far: 90 } },
+    garden:   { volume: 0.26, space: 'garden', throughDoor: { near: 24, far: 90 } },
   },
 
   // A backgrounded tab is throttled and nobody is listening to it anyway.

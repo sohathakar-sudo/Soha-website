@@ -52,6 +52,9 @@ less control to draw, persist and explain.
 | ✅ Garden chirping, looped, volume by position | irregular on purpose; a bird on a timer stops sounding like a bird |
 | ✅ Room tone | the floor that stops an empty café sounding broken |
 | ✅ Jukebox on and off at the machine | |
+| ✅ One volume per room | distance inside a space was tried and removed; only the dividing wall attenuates |
+| ✅ Scribbling and typing while working | habit derived from faceId |
+| ✅ Sipping and cutlery while you have a coffee | a cup lasts two minutes and is drunk only at a table |
 
 | Left | |
 |---|---|
@@ -68,7 +71,7 @@ Coffee already exists and already persists; this gives it meaning.
 | | |
 |---|---|
 | Café menu that sets a focus duration | M |
-| Focus mechanism — timer, what happens at the end, what a "session" is | M |
+| Focus mechanism — timer, what happens at the end, what a "session" is | M — **the sound side is already wired.** `isWorking()` in `src/player.js` is one function returning `isSeated(player)`; narrow it to `isSeated(player) && sessionRunning(player)` and the scribbling, typing and sipping all stop when the timer does, because every one of them already asks it |
 | To-do list you fill in when you sit down | M |
 | To-do list icon, bottom-right | S |
 | Click a person → say hi, see what they're working on | M — needs multiplayer for other people |

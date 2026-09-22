@@ -45,13 +45,14 @@ Multiplayer isn't built. The shape is, and it must not be broken:
   player is an ordinary entry keyed `local`. Nothing may special-case it except
   reading the keyboard and drawing the HUD.
 - **`Player` is plain serializable data:** `{ id, name, faceId, x, y, state,
-  holdingCoffee, coffees }`. No methods, no DOM or canvas references. `faceId`
+  holdingCoffee, coffees, coffeeLeft, music }`. No methods, no DOM or canvas references. `faceId`
   is 1–8. `dir` is local-only and must never reach the draw path.
 - **Room state and render state are different objects.** Positions and states in
   the player; bob phase and interpolation in a render-state map keyed by player
   id, created lazily so someone appearing mid-session gets one.
-- **`applyMovement(player, input, dt, collision) -> {x, y}` and
-  `applyInteraction(player, input, room, taken) -> {…}` are pure.** State in,
+- **`applyMovement(player, input, dt, collision) -> {x, y}`,
+  `applyInteraction(player, input, room, taken) -> {…}` and
+  `applyTime(player, dt) -> {…}` are pure.** State in,
   state out. No clock, no DOM, no module-level mutable state, nothing from the
   draw path. A server must be able to run them.
 - **`src/net.js` is a stub the loop already calls** — `connect`, `sendInput`
@@ -197,6 +198,13 @@ arriving over the wire will sound without new code, and everyone but you is
 heard at the volume their distance earns. A footstep is a completed bob cycle,
 so the sound and the sight of a step are the same number.
 
+Sitting down sounds like working — scribbling or typing, the habit derived from
+`faceId` so nothing needs syncing — and a coffee is drunk rather than counted:
+two minutes from the counter, sipped only at a table, picked back up if you sit
+down again before it goes cold. `isWorking()` in `player.js` is the single hook
+the menu's focus time narrows; every desk sound already asks it, so they all
+stop when a session's timer does.
+
 **The faces build is finished.** All eight hand-drawn faces are in, bobbing as
 they walk. No placeholder art remains for the people; only the room is still
 generated. Next up is room artwork, then whatever in `BACKLOG.md` you want.
@@ -221,6 +229,9 @@ garden through a doorway, L of bar rail with stools. **21 seats.**
 | Layout comes from a drawing, not from code | I was inventing layouts nobody wanted |
 | Small talk over voice chat | see `BACKLOG.md`; voice means consent, moderation and a bill that scales with popularity, for a feeling text mostly delivers |
 | No dependencies, no build step | the folder must stay droppable anywhere |
+| A room has one volume | the café does not get quieter at the counter or in the middle of the floor. Distance inside a space was tried and was wrong: it made the room feel like a set of pools rather than a place. Only a wall attenuates, and the doorway is the one hole in it |
+| `working` is a predicate, never a state | `isWorking()` asks a question about the two states that exist. Reintroducing a third was the mistake that seat facing and the laptop square came with |
+| A coffee lasts two minutes | a bottomless cup is odd once you notice it, and a tally that only goes up is not a thing you are holding. It counts down whether you are sitting or not, and it does not survive a reload |
 | No in-game mute or volume control | the OS has a volume key and the browser has a tab mute; both are better than anything the café could draw in a corner, and neither needs building, persisting or explaining |
 | Sound synthesized, not sampled | the same move `make-placeholders.html` makes for the room: something real to work against now. Recordings drop in later via `assets/audio/manifest.json` with no code change |
 | Sound driven by state changes, not by input | `applyMovement` and `applyInteraction` must stay pure for the server; reading the difference in `main.js` also makes remote players audible for free |
@@ -266,10 +277,6 @@ garden through a doorway, L of bar rail with stools. **21 seats.**
   everyone in the room, which is what a real café does and is also one stranger
   silencing another. The alternative is a per-listener preference that does not
   travel, which is safer and less like a place.
-- The middle of the room is quiet: too far for the jukebox, too far for the
-  garden, with only the room tone underneath. That may be exactly right — you
-  are between two things — or the falloff radii in `AUDIO.ambience` may want
-  widening. A judgement for ears, not for code.
 - Doors and the garden both live in `AUDIO` in config rather than in
   `room.json`, because the layout colour key has no colour for either. The
   proper fix is a door colour in `LAYOUT.md` and `import-map.html` so the

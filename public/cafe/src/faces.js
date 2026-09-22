@@ -44,6 +44,10 @@ export function createRenderState() {
     idleFor: 0,    // seconds since they last moved
     footfalls: 0,  // completed bob cycles; a footstep sounds on each one
     doorId: undefined,  // the doorway they are standing in; undefined until first looked at
+    // Countdowns to the next repeating sound, in seconds. null means the thing
+    // that causes them is not happening, so they start from a fresh wait.
+    nextDesk: null,
+    nextSip: null,
     lastX: null,
     lastY: null,
   };

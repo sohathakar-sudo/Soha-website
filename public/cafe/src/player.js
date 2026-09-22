@@ -1,4 +1,4 @@
-import { PLAYER } from './config.js';
+import { PLAYER, COFFEE } from './config.js';
 
 // A Player is plain data: no methods, no DOM, no canvas. It serializes as-is,
 // which is what lets the same object come off the wire later.
@@ -12,6 +12,9 @@ export function createPlayer({ id, name = 'guest', faceId = 1, x = 0, y = 0 }) {
     state: 'walking',     // walking | sitting
     holdingCoffee: false,
     coffees: 0,
+    // Seconds left on the cup in their hand. Counted down by applyTime rather
+    // than compared against a clock, because the pure steps may not read one.
+    coffeeLeft: 0,
     // Whether the jukebox is playing. It lives on the player because that is
     // what travels over the wire, but it is a fact about the room: a café has
     // one jukebox, and switching it off switches it off for whoever is in
@@ -93,13 +96,13 @@ function nearestFreeSeat(zone, x, y, taken) {
 //   walking + Enter in a table or bar zone -> sitting at the nearest free seat
 //                                             (nothing happens if it is full)
 //   sitting + any movement                 -> walking, released from the seat
-//   walking + Enter in a counter zone      -> a coffee
+//   walking + Enter in a counter zone      -> a coffee, good for COFFEE.lasts
 //   walking + Enter in the jukebox zone    -> the music stops, or starts again
 //
 // input.interact is already edge-triggered by the time it arrives here.
 // `taken` is the list of seat positions other players are already on.
 export function applyInteraction(player, input, room, taken = []) {
-  let { state, x, y, holdingCoffee, coffees, music } = player;
+  let { state, x, y, holdingCoffee, coffees, music, coffeeLeft } = player;
 
   const moving = input.left || input.right || input.up || input.down;
 
@@ -117,16 +120,40 @@ export function applyInteraction(player, input, room, taken = []) {
         y = seat.y;
       }
     } else if (zone && zone.type === 'counter') {
+      // A fresh cup restarts the clock, whatever was left of the last one.
       holdingCoffee = true;
+      coffeeLeft = COFFEE.lasts;
       coffees += 1;
     } else if (zone && zone.type === 'jukebox') {
       music = !music;
     }
   }
 
-  return { state, x, y, holdingCoffee, coffees, music };
+  return { state, x, y, holdingCoffee, coffees, music, coffeeLeft };
 }
 
 export function isSeated(player) {
   return player.state === 'sitting';
+}
+
+// Whether somebody is working, which today means nothing more than being sat
+// down. There is no `working` state and there is deliberately not going to be
+// one — it was removed along with seat facing and the laptop square, and this
+// is a question asked about the two states that exist, not a third.
+//
+// It is also the hook the café's focus time will hang on. When the menu lands
+// this becomes `isSeated(player) && sessionRunning(player)`, and every desk
+// sound stops when the timer does, because they all already ask right here.
+export function isWorking(player) {
+  return isSeated(player);
+}
+
+// The third pure step, beside applyMovement and applyInteraction: state and a
+// duration in, state out, no clock and no DOM. A server has to be able to run
+// it, which is exactly why the coffee is a countdown rather than a timestamp.
+export function applyTime(player, dt) {
+  if (player.coffeeLeft <= 0) return { coffeeLeft: 0, holdingCoffee: false };
+
+  const coffeeLeft = Math.max(0, player.coffeeLeft - dt);
+  return { coffeeLeft, holdingCoffee: coffeeLeft > 0 };
 }

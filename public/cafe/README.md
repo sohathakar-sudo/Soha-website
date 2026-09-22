@@ -115,9 +115,12 @@ Furniture follows the data: each solid is drawn as whatever kind it says it is.
 
 ## Sound
 
-The café hums, plays something on the jukebox, and lets the garden in through
-the doorway. Walk between them and it crossfades, because the jukebox and the
-garden are at opposite ends of a 640px room.
+The café hums, plays something on the jukebox, lets the garden in through the
+doorway, and sounds like somebody is working in it.
+
+**A room has one volume.** The music does not get quieter because you walked to
+the counter or stood in the middle of the floor — the café is one space and it
+sounds like one. The only thing that turns anything down is a wall.
 
 **Nothing makes a sound until you click.** Browsers refuse to start audio
 outside a user gesture, so rather than starting one muted and hoping, there is
@@ -127,28 +130,47 @@ Doors creak. Walking into the garden doorway swings it open and walking out
 lets it fall shut, and arriving through the front door is three sounds rather
 than one — the swing, the bell over it, then the door closing behind you.
 
-The garden is only heard **through** that doorway. There is a solid wall between
-the café and the birds, so in the café the doorway is a ceiling on how loud they
-can get: they fade in over the last stretch of floor before the opening and are
-gone by mid-room. Step through and you hear them directly instead. The two agree
-at the threshold, so crossing it is a fade and not a jump.
+The garden is a second room, and the doorway is the only hole in the wall
+between them. So in the café the birds fade in over the last stretch of floor
+before the opening and are gone by mid-room, and in the garden the jukebox does
+the same thing in reverse. Inside either room it is flat. The two meet at the
+threshold, so crossing it is a fade and never a jump.
 
 **There is no mute button and no volume slider.** Your operating system has a
 volume key and your browser can mute the tab, and both are better than anything
 this café could draw in a corner.
 
+### Sitting down to work
+
+Sit at a table and you get on with something: scribbling in a notebook, or
+typing. Which one is a habit, and the habit comes from your face — even faces
+type, odd faces write longhand, and one flurry in five is the other one, because
+nobody only ever does the one thing.
+
+Buy a coffee and you drink it. **A cup is good for two minutes** from the moment
+it is bought, and it goes cold whether you are sitting or not. Sipping only
+happens at a table, so standing up ends it and sitting back down with time left
+on the cup picks it up again.
+
+Whether somebody is working is one function, `isWorking` in `src/player.js`, and
+today it means nothing more than being sat down. There is no `working` state and
+deliberately never will be — it is a question asked about the two states that
+exist. It is also where the café's focus time will hook in: narrow that one
+function and every desk sound stops when the session's timer does.
+
 ### There are no audio files
 
 Every sound is built out of oscillators and filtered noise at the moment it
-plays — seven one-shots in `src/sounds.js`, three loops in `src/ambience.js`.
+plays — eleven one-shots in `src/sounds.js`, three loops in `src/ambience.js`.
 No download, no dependency, nothing to license. It is what
 `tools/make-placeholders.html` does for the room art: something real to work
 against, replaced by the real thing later.
 
 To replace one with a recording:
 
-1. Drop `assets/audio/<name>.mp3` in — `door`, `doorOpen`, `doorClose`,
-   `step`, `sit`, `stand`, `coffee`, `click` or `pick`.
+1. Drop `assets/audio/<name>.mp3` in — `door`, `doorOpen`, `doorClose`, `step`,
+   `sit`, `stand`, `coffee`, `scribble`, `type`, `sip`, `cutlery`, `click` or
+   `pick`.
 2. Add that name to the `files` list in `assets/audio/manifest.json`.
 
 No code changes. The manifest exists so the café makes exactly one request at
@@ -156,11 +178,15 @@ startup instead of seven failing ones.
 
 ### Tuning it
 
-Every number is in `AUDIO` in `src/config.js`: the mix, and the `near` and `far`
-radii that decide how far the jukebox carries. `near` is where a loop is at full
-volume, `far` where it reaches silence. The garden has a second pair under
-`throughDoor` — the same two radii measured from the doorway, which is what
-limits it inside the café.
+Every number is in `AUDIO` in `src/config.js`. There are no falloff radii inside
+a room, because a room is flat; the only pair is `throughDoor`, the radii
+measured from the doorway that decide how much of one room reaches the other.
+`near` is where it is still at full volume, `far` where it reaches silence.
+
+`AUDIO.desk` and `AUDIO.sipping` set how often somebody working makes a noise.
+`settle` is the pause after sitting down before the first one — without it,
+sitting reads as a machine starting rather than a person getting their things
+out. `COFFEE.lasts` is the two minutes.
 
 `AUDIO.doors` lists the doorways that creak. They are written down rather than
 read off `room.json` because the layout colour key has no colour for a door, so

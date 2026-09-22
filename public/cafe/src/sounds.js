@@ -163,6 +163,59 @@ const RECIPES = {
     burst(ctx, out, { freq: 2600, q: 4, peak: 0.3, attack: 0.002, decay: 0.035, at: at + 0.35 });
   },
 
+  // A pen on paper. Several short scratches, none of them the same length or
+  // quite the same pitch — even handwriting is uneven, and a regular one reads
+  // as a machine sanding something.
+  scribble(ctx, out, at) {
+    const strokes = 3 + Math.floor(Math.random() * 4);
+    let t = at;
+    for (let i = 0; i < strokes; i++) {
+      const length = 0.02 + Math.random() * 0.035;
+      burst(ctx, out, {
+        freq: vary(1700, 0.35), q: 0.9,
+        peak: vary(0.8, 0.3), attack: 0.004, decay: length,
+        at: t, sweepTo: vary(1100, 0.3),
+      });
+      t += length + 0.02 + Math.random() * 0.05;
+    }
+  },
+
+  // Keys. A click on top for the keycap and a thock underneath for the board it
+  // is sitting on, with the gaps between them uneven: nobody types in time.
+  type(ctx, out, at) {
+    const keys = 4 + Math.floor(Math.random() * 6);
+    let t = at;
+    for (let i = 0; i < keys; i++) {
+      burst(ctx, out, { freq: vary(2400, 0.25), q: 2.4, peak: vary(0.7, 0.3), attack: 0.001, decay: 0.022, at: t });
+      burst(ctx, out, { freq: 220, type: 'lowpass', q: 0.8, peak: vary(0.35, 0.3), attack: 0.002, decay: 0.045, at: t });
+      t += 0.055 + Math.random() * 0.115;
+    }
+  },
+
+  // A sip: air and liquid drawn over the lip of a cup. A narrow band sliding
+  // upward through a breath of noise, quiet, and over before you notice it.
+  sip(ctx, out, at) {
+    burst(ctx, out, {
+      freq: 380, sweepTo: 950, q: 6,
+      peak: 0.5, attack: 0.06, decay: 0.3, at,
+    });
+    // The cup coming away.
+    burst(ctx, out, { freq: 1500, q: 2, peak: 0.12, attack: 0.003, decay: 0.05, at: at + 0.36 });
+  },
+
+  // A spoon finding the side of a cup. Two or three, because one ping sounds
+  // like a notification and three sounds like somebody stirring.
+  cutlery(ctx, out, at) {
+    const pings = 2 + Math.floor(Math.random() * 2);
+    let t = at;
+    for (let i = 0; i < pings; i++) {
+      const pitch = vary(3000, 0.18);
+      tone(ctx, out, { freq: pitch, peak: 0.3, attack: 0.001, decay: 0.12, at: t });
+      tone(ctx, out, { freq: pitch * 1.48, peak: 0.12, attack: 0.001, decay: 0.08, at: t });
+      t += 0.09 + Math.random() * 0.07;
+    }
+  },
+
   // A pour that climbs as the cup fills, then the cup set down on the counter.
   coffee(ctx, out, at) {
     burst(ctx, out, {

@@ -4,10 +4,12 @@ import { context, bus, gainFor } from './audio.js';
 // The three things the café is always doing: humming to itself, playing
 // something on the jukebox, and letting the garden in through the doorway.
 //
-// The one-shots in sounds.js are events. These are places. The jukebox sits at
-// one end of a 640px room and the garden at the other, so walking between them
-// is a crossfade, and the room tone underneath never moves — it is the floor
-// that stops an empty café sounding like a broken one.
+// The one-shots in sounds.js are events. These are places, and a place has one
+// volume throughout — the music does not get quieter because you walked to the
+// counter. What separates them is the dividing wall: the café and the garden
+// are two rooms, each flat inside itself, each audible from the other only
+// through the one doorway. The room tone underneath belongs to neither and
+// never moves; it is the floor that stops an empty café sounding broken.
 //
 // Everything here is generated too, for the same reasons as sounds.js: no
 // files, no dependency, and nothing to license. Real music is a decision about
@@ -192,14 +194,6 @@ function scheduleAhead(ctx) {
 
 // --- Public --------------------------------------------------------------
 
-// Where the music comes from. Read off the jukebox zone when the room has one,
-// so moving the jukebox in the drawing moves the music with it.
-export function jukeboxEmitter(room) {
-  const zone = room && room.zones.find((z) => z.type === 'jukebox');
-  if (!zone) return AUDIO.emitters.jukebox;
-  return { x: zone.x + zone.w / 2, y: zone.y + zone.h / 2 };
-}
-
 // The garden doorway, as a point. The doors are listed for their creak, but the
 // gap they describe is also the only hole in the dividing wall, which makes it
 // the only route sound has into the café.
@@ -208,25 +202,24 @@ function doorway(id) {
   return door ? { x: door.x + door.w / 2, y: door.y + door.h / 2 } : null;
 }
 
-// What the birds are worth from where you are standing.
+// What a loop is worth from where the listener is standing.
 //
-// In the garden you hear them directly. In the café you hear them through the
-// doorway, and the doorway is a ceiling rather than a second source: the garden
-// can never be louder than the hole it comes through. The two agree at the
-// opening — standing in it, the ceiling is 1 and the direct term takes over —
-// so crossing the threshold is continuous and not a step.
-function gardenGain(listener) {
-  const g = AUDIO.ambience.garden;
-  const direct = gainFor(AUDIO.emitters.garden, listener.x, listener.y, g.near, g.far);
-
+// Inside its own space, everything: a room has one volume, and walking to the
+// counter does not turn the music down. From the other side of the dividing
+// wall, only what fits through the doorway — which is a ceiling rather than a
+// second source, so nothing is ever louder than the hole it came through.
+//
+// The two meet at the opening. Standing in the doorway the ceiling is 1, which
+// is also what the same-space term gives, so crossing the threshold in either
+// direction is a fade and never a step.
+function spaceGain(listener, space, throughDoor) {
   const door = doorway('garden');
-  if (!door || !g.throughDoor) return direct;
+  if (!door || !throughDoor) return 1;
 
-  const dividerX = door.x;
-  if (listener.x >= dividerX) return direct;
+  const listenerInGarden = listener.x >= door.x;
+  if (listenerInGarden === (space === 'garden')) return 1;
 
-  const through = gainFor(door, listener.x, listener.y, g.throughDoor.near, g.throughDoor.far);
-  return Math.min(direct, through);
+  return gainFor(door, listener.x, listener.y, throughDoor.near, throughDoor.far);
 }
 
 export function start() {
@@ -257,17 +250,15 @@ export function levels() {
 }
 
 // Called once per tick with wherever the player is standing.
-export function update(listener, room, musicOn = true) {
+export function update(listener, musicOn = true) {
   const ctx = context();
   if (!started || !ctx) return;
 
   const music = AUDIO.ambience.music;
   const garden = AUDIO.ambience.garden;
 
-  const toJukebox = gainFor(jukeboxEmitter(room), listener.x, listener.y, music.near, music.far);
-
-  loops.music.to(musicOn ? music.volume * toJukebox : 0);
-  loops.garden.to(garden.volume * gardenGain(listener));
+  loops.music.to(musicOn ? music.volume * spaceGain(listener, music.space, music.throughDoor) : 0);
+  loops.garden.to(garden.volume * spaceGain(listener, garden.space, garden.throughDoor));
 
   scheduleAhead(ctx);
 }
