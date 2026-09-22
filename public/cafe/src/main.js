@@ -10,6 +10,7 @@ import { createDebugEditor } from './debug.js';
 import * as audio from './audio.js';
 import { gainFor } from './audio.js';
 import { play } from './sounds.js';
+import * as ambience from './ambience.js';
 import * as net from './net.js';
 
 const canvas = document.getElementById('game');
@@ -184,7 +185,12 @@ function update(dt) {
     stepPlayer(player, inputFor(player, localInput), dt);
   }
 
-  rememberCoffees(players.get(LOCAL_ID).coffees);
+  const me = players.get(LOCAL_ID);
+  rememberCoffees(me.coffees);
+
+  // The room hums, the jukebox plays and the garden chirps from wherever they
+  // are; this is the one place that tells them where the listener is standing.
+  ambience.update(me, room);
 }
 
 // What Enter would do from where the player is standing.
@@ -277,6 +283,10 @@ async function boot() {
   savedCoffees = me.coffees;
   addPlayer(me);
 
+  // Audio was unlocked by the title screen's first click, so the loops can
+  // start the moment the player walks in.
+  ambience.start();
+
   attachInput();
   editor = createDebugEditor({ canvas, room, loop, players, localId: LOCAL_ID, reloadArt });
   net.connect();
@@ -284,7 +294,7 @@ async function boot() {
 
   // A handle for the console and for the debug editor in phase 7. Read-only in
   // spirit: the game never reads anything back off it.
-  window.cafe = { players, renderStates, room, art, loop, editor, audio };
+  window.cafe = { players, renderStates, room, art, loop, editor, audio, ambience };
 }
 
 boot().catch((err) => {
