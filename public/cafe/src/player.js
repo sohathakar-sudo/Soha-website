@@ -12,6 +12,11 @@ export function createPlayer({ id, name = 'guest', faceId = 1, x = 0, y = 0 }) {
     state: 'walking',     // walking | sitting
     holdingCoffee: false,
     coffees: 0,
+    // Whether the jukebox is playing. It lives on the player because that is
+    // what travels over the wire, but it is a fact about the room: a café has
+    // one jukebox, and switching it off switches it off for whoever is in
+    // there with you. See the open question in CONTEXT.md.
+    music: true,
   };
 }
 
@@ -89,11 +94,12 @@ function nearestFreeSeat(zone, x, y, taken) {
 //                                             (nothing happens if it is full)
 //   sitting + any movement                 -> walking, released from the seat
 //   walking + Enter in a counter zone      -> a coffee
+//   walking + Enter in the jukebox zone    -> the music stops, or starts again
 //
 // input.interact is already edge-triggered by the time it arrives here.
 // `taken` is the list of seat positions other players are already on.
 export function applyInteraction(player, input, room, taken = []) {
-  let { state, x, y, holdingCoffee, coffees } = player;
+  let { state, x, y, holdingCoffee, coffees, music } = player;
 
   const moving = input.left || input.right || input.up || input.down;
 
@@ -113,12 +119,12 @@ export function applyInteraction(player, input, room, taken = []) {
     } else if (zone && zone.type === 'counter') {
       holdingCoffee = true;
       coffees += 1;
+    } else if (zone && zone.type === 'jukebox') {
+      music = !music;
     }
-    // The jukebox zone is recognised by room.json already; it gets its
-    // behaviour in the music phase.
   }
 
-  return { state, x, y, holdingCoffee, coffees };
+  return { state, x, y, holdingCoffee, coffees, music };
 }
 
 export function isSeated(player) {

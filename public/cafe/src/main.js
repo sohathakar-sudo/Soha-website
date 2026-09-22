@@ -136,6 +136,12 @@ function soundChanges(player, before, renderState, footfallsBefore) {
     play('coffee', loudness);
   }
 
+  // The jukebox answers with a click either way — pressing a button that
+  // produces silence has to still feel like pressing a button.
+  if (player.music !== before.music) {
+    play('click', loudness);
+  }
+
   // One footstep per completed bob cycle. A tick that covers several — a slow
   // frame, or a snapshot arriving late — is still only worth one footfall; a
   // burst of them reads as a stumble.
@@ -147,7 +153,7 @@ function soundChanges(player, before, renderState, footfallsBefore) {
 // One player, one tick. Identical for everyone in the map: whether the input
 // came from this keyboard or from a snapshot makes no difference here.
 function stepPlayer(player, input, dt) {
-  const before = { state: player.state, coffees: player.coffees };
+  const before = { state: player.state, coffees: player.coffees, music: player.music };
   const renderState = renderStates.get(player.id);
   const footfallsBefore = renderState.footfalls;
 
@@ -190,7 +196,7 @@ function update(dt) {
 
   // The room hums, the jukebox plays and the garden chirps from wherever they
   // are; this is the one place that tells them where the listener is standing.
-  ambience.update(me, room);
+  ambience.update(me, room, me.music);
 }
 
 // What Enter would do from where the player is standing.
@@ -199,7 +205,7 @@ function promptFor(player) {
   const zone = room ? room.zoneAt(player.x, player.y) : null;
   if (!zone) return '';
   if (zone.type === 'counter') return 'ENTER  coffee';
-  if (zone.type === 'jukebox') return '';
+  if (zone.type === 'jukebox') return player.music ? 'ENTER  stop the music' : 'ENTER  play something';
   return zone.seats && zone.seats.length ? 'ENTER  sit' : '';
 }
 
