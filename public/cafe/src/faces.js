@@ -42,6 +42,7 @@ export function createRenderState() {
     phase: 0,      // where we are in the up-and-down, in radians
     amplitude: 0,  // 0 settled, 1 fully bobbing
     idleFor: 0,    // seconds since they last moved
+    footfalls: 0,  // completed bob cycles; a footstep sounds on each one
     lastX: null,
     lastY: null,
   };
@@ -67,8 +68,12 @@ export function advanceBob(renderState, player, dt, maxStep = FACE.maxStepPx) {
   const walking = player.state !== 'sitting' && renderState.idleFor < FACE.coastSeconds;
 
   // Phase advances per pixel travelled: walk slower and the bob slows with you.
+  // Every completed cycle is one footfall — counted here rather than timed
+  // elsewhere, so the sound of a step and the sight of one cannot drift apart.
   if (walking) {
-    renderState.phase = (renderState.phase + (distance / FACE.bobPeriodPx) * TWO_PI) % TWO_PI;
+    const advanced = renderState.phase + (distance / FACE.bobPeriodPx) * TWO_PI;
+    renderState.footfalls += Math.floor(advanced / TWO_PI);
+    renderState.phase = advanced % TWO_PI;
   }
 
   // Fade in and out rather than snapping, so stopping settles instead of jolting.

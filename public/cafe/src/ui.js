@@ -1,5 +1,7 @@
 import { VIEW, FACE, FACE_COUNT } from './config.js';
 import { faceImage } from './faces.js';
+import { unlock } from './audio.js';
+import { play, preload } from './sounds.js';
 
 const NAME_KEY = 'cafe:name';
 const FACE_KEY = 'cafe:face';
@@ -40,6 +42,12 @@ export function cleanName(raw) {
   return trimmed || 'guest';
 }
 
+// Audio cannot exist before a user gesture, so the first click on the title
+// screen is what brings it into being. Calling this more than once is free.
+function startAudio() {
+  if (unlock()) preload();
+}
+
 // The title screen. Resolves once with the player's choices; the caller starts
 // the game from there.
 export function showTitle() {
@@ -78,6 +86,10 @@ export function showTitle() {
     button.appendChild(canvas);
 
     button.addEventListener('click', () => {
+      // The title screen is where the player first touches the page, so it is
+      // also where audio is allowed to start. Every button here unlocks it.
+      startAudio();
+      play('pick');
       faceId = id;
       for (const [otherId, otherButton] of buttons) {
         otherButton.setAttribute('aria-pressed', String(otherId === id));
@@ -93,7 +105,11 @@ export function showTitle() {
   nameInput.select();
 
   return new Promise((resolve) => {
-    function play() {
+    function start() {
+      startAudio();
+      // The one moment of arrival the café has: you open the door and it rings.
+      play('door');
+
       const name = cleanName(nameInput.value);
       write(NAME_KEY, name);
       write(FACE_KEY, String(faceId));
@@ -105,16 +121,16 @@ export function showTitle() {
     function onKey(e) {
       if (e.key === 'Enter') {
         e.preventDefault();
-        play();
+        start();
       }
     }
 
     function cleanup() {
-      playButton.removeEventListener('click', play);
+      playButton.removeEventListener('click', start);
       screen.removeEventListener('keydown', onKey);
     }
 
-    playButton.addEventListener('click', play);
+    playButton.addEventListener('click', start);
     screen.addEventListener('keydown', onKey);
   });
 }

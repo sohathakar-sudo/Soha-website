@@ -68,8 +68,62 @@ export const PALETTE = {
   shadow: 'rgba(60, 44, 32, 0.28)',
 };
 
+// --- Sound -----------------------------------------------------------------
+// There is no in-game volume or mute control on purpose: the operating system
+// and the browser's own tab mute already do that job, and better. This block is
+// the mix, not a user setting.
+export const AUDIO = {
+  // Everything is scaled by this. The café should sit under a conversation,
+  // never over one.
+  masterVolume: 0.5,
+
+  // One-shots, relative to master.
+  volume: {
+    click: 0.35,
+    pick: 0.30,
+    door: 0.45,
+    step: 0.16,
+    sit: 0.28,
+    stand: 0.24,
+    coffee: 0.40,
+  },
+
+  // Footsteps are not timed at all: one plays every time the bob completes a
+  // cycle, so a footfall lands exactly when the face touches down. The cadence
+  // is therefore FACE.bobPeriodPx and there is nothing here to keep in sync
+  // with it.
+
+  // Somebody else's footstep, sit or coffee is heard from where you are
+  // standing. The local player is always at full volume — you are not across
+  // the room from yourself.
+  nearby: { near: 40, far: 280 },
+
+  // Looped ambience. `near` is the radius inside which an emitter plays at full
+  // volume, `far` the radius where it reaches silence.
+  ambience: {
+    roomTone: { volume: 0.10 },
+    music:    { volume: 0.30, near: 70, far: 330 },
+    garden:   { volume: 0.26, near: 60, far: 270 },
+  },
+
+  // Where the positional loops come from.
+  emitters: {
+    // Read from the jukebox zone in room.json when there is one, so moving the
+    // jukebox in the drawing moves the music. This is only the fallback.
+    jukebox: { x: 80, y: 64 },
+    // The garden has no zone: the layout colour key has no garden colour, so
+    // the importer has nothing to emit for it. Its centre is set by hand here
+    // instead — move it if the drawing's garden moves.
+    garden: { x: 566, y: 204 },
+  },
+
+  // A backgrounded tab is throttled and nobody is listening to it anyway.
+  suspendWhenHidden: true,
+};
+
 export const PATHS = {
   assets: './assets/',
+  audio: './assets/audio/',
   room: './data/room.json',
 };
 

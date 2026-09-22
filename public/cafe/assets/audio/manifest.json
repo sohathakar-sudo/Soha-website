@@ -1,0 +1,4 @@
+{
+  "_comment": "Names listed here are played from assets/audio/<name>.mp3 instead of the built-in synthesized placeholder. Drop the file in, add its name, done. Empty means every sound is synthesized.",
+  "files": []
+}

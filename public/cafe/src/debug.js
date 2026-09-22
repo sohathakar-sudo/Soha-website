@@ -1,4 +1,5 @@
 import { VIEW } from './config.js';
+import { play } from './sounds.js';
 
 const MIN_SIZE = 4;
 const HANDLE = 5; // corner grab area, in native pixels
@@ -207,7 +208,10 @@ export function createDebugEditor({ canvas, room, loop, players, localId, reload
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('keydown', onKeyDown);
-  copyButton.addEventListener('click', copyJson);
+  copyButton.addEventListener('click', () => {
+    play('click');
+    copyJson();
+  });
 
   function drawRect(ctx, rect, fill, line) {
     ctx.fillStyle = fill;

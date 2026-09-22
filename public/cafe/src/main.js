@@ -1,4 +1,4 @@
-import { VIEW, PATHS } from './config.js';
+import { VIEW, PATHS, AUDIO } from './config.js';
 import { createLoop } from './loop.js';
 import { attachInput, readInput, consumePress } from './input.js';
 import { createPlayer, applyMovement, applyInteraction, isSeated } from './player.js';
@@ -7,6 +7,9 @@ import { drawBackground, drawForeground, drawPlayers } from './render.js';
 import { loadRoom } from './room.js';
 import { showTitle, drawHud } from './ui.js';
 import { createDebugEditor } from './debug.js';
+import * as audio from './audio.js';
+import { gainFor } from './audio.js';
+import { play } from './sounds.js';
 import * as net from './net.js';
 
 const canvas = document.getElementById('game');
@@ -104,9 +107,49 @@ function takenSeats(player) {
   return taken;
 }
 
+// How loud a thing one player does sounds to the player at the keyboard.
+// Everyone is heard from where you are standing, which is the whole reason the
+// room is worth being in.
+function loudnessOf(player) {
+  if (player.id === LOCAL_ID) return 1;
+  const me = players.get(LOCAL_ID);
+  if (!me) return 0;
+  return gainFor(player, me.x, me.y, AUDIO.nearby.near, AUDIO.nearby.far);
+}
+
+// Sound is driven by what changed in a player's state, never by what was
+// pressed. applyMovement and applyInteraction have to stay pure — they will run
+// on a server one day — so nothing in them may reach an audio device. Reading
+// the difference here instead keeps them clean and has a second benefit: a
+// player arriving over the wire moves through exactly the same path, so other
+// people's footsteps and chairs will sound without a line of new code.
+function soundChanges(player, before, renderState, footfallsBefore) {
+  const loudness = loudnessOf(player);
+  if (loudness <= 0) return;
+
+  if (player.state !== before.state) {
+    play(player.state === 'sitting' ? 'sit' : 'stand', loudness);
+  }
+
+  if (player.coffees > before.coffees) {
+    play('coffee', loudness);
+  }
+
+  // One footstep per completed bob cycle. A tick that covers several — a slow
+  // frame, or a snapshot arriving late — is still only worth one footfall; a
+  // burst of them reads as a stumble.
+  if (renderState.footfalls > footfallsBefore) {
+    play('step', loudness);
+  }
+}
+
 // One player, one tick. Identical for everyone in the map: whether the input
 // came from this keyboard or from a snapshot makes no difference here.
 function stepPlayer(player, input, dt) {
+  const before = { state: player.state, coffees: player.coffees };
+  const renderState = renderStates.get(player.id);
+  const footfallsBefore = renderState.footfalls;
+
   // Interactions first: they can stand a seated player up in time for the
   // same tick's movement.
   Object.assign(player, applyInteraction(player, input, room, takenSeats(player)));
@@ -119,7 +162,9 @@ function stepPlayer(player, input, dt) {
   }
 
   // Render state last, so it reacts to where the player actually ended up.
-  advanceBob(renderStates.get(player.id), player, dt);
+  advanceBob(renderState, player, dt);
+
+  soundChanges(player, before, renderState, footfallsBefore);
 }
 
 // --- Loop ------------------------------------------------------------------
@@ -239,7 +284,7 @@ async function boot() {
 
   // A handle for the console and for the debug editor in phase 7. Read-only in
   // spirit: the game never reads anything back off it.
-  window.cafe = { players, renderStates, room, art, loop, editor };
+  window.cafe = { players, renderStates, room, art, loop, editor, audio };
 }
 
 boot().catch((err) => {
