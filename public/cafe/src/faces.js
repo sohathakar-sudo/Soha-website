@@ -69,6 +69,7 @@ export function createRenderState() {
     // arriving over the wire gets them without sending anything extra.
     faceAngle: 0,
     deskAt: null,
+    cupAt: null,
     lastX: null,
     lastY: null,
   };

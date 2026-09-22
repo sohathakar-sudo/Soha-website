@@ -199,6 +199,7 @@ function faceTheTable(player, renderState) {
   if (!isSeated(player)) {
     renderState.faceAngle = 0;
     renderState.deskAt = null;
+    renderState.cupAt = null;
     return;
   }
 
@@ -214,11 +215,22 @@ function faceTheTable(player, renderState) {
     : (dy > 0 ? 0 : Math.PI);
   renderState.faceAngle = angle;
 
-  // The laptop sits on the table, just inside the edge they are facing.
+  // The laptop sits on the table, just inside the edge they are facing, and the
+  // cup goes down beside it — on the table rather than in their hand, because
+  // that is what you do with a coffee when you sit down to work.
   const inset = 13;
-  renderState.deskAt = Math.abs(dx) > Math.abs(dy)
+  const sideways = Math.abs(dx) > Math.abs(dy);
+  renderState.deskAt = sideways
     ? { x: dx > 0 ? table.x + inset : table.x + table.w - inset, y: player.y - 6 }
     : { x: player.x, y: dy > 0 ? table.y + inset : table.y + table.h - inset };
+
+  // Set down to their right, along the edge they are sitting at, and kept
+  // inside the table however close to a corner they sat.
+  const reach = 19;
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+  renderState.cupAt = sideways
+    ? { x: renderState.deskAt.x, y: clamp(renderState.deskAt.y + reach * (dx > 0 ? 1 : -1), table.y + 8, table.y + table.h - 8) }
+    : { x: clamp(renderState.deskAt.x + reach * (dy > 0 ? -1 : 1), table.x + 8, table.x + table.w - 8), y: renderState.deskAt.y };
 }
 
 // The doorway a point is standing in, or null. Doors are not zones in

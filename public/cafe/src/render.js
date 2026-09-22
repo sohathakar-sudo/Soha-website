@@ -50,9 +50,11 @@ export function drawPlayers(ctx, players, renderStates) {
     drawShadow(ctx, player.x, player.y, bob);
     drawFace(ctx, player.faceId, player.x, player.y, bob, state.faceAngle || 0);
 
-    // A coffee is carried beside them, and it goes wherever they go.
+    // A coffee is carried beside them while they walk, and set down on the
+    // table the moment they sit.
     if (player.holdingCoffee) {
-      drawProp(ctx, 'cup', player.x + CUP_OFFSET.x, player.y + CUP_OFFSET.y + bob);
+      if (state.cupAt) drawProp(ctx, 'cup', state.cupAt.x, state.cupAt.y);
+      else drawProp(ctx, 'cup', player.x + CUP_OFFSET.x, player.y + CUP_OFFSET.y + bob);
     }
   }
 }
