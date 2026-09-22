@@ -86,7 +86,19 @@ export const AUDIO = {
     sit: 0.28,
     stand: 0.24,
     coffee: 0.40,
+    doorOpen: 0.34,
+    doorClose: 0.32,
   },
+
+  // Doorways that creak when someone goes through them. Like the garden
+  // emitter, these are written down rather than read off room.json: the layout
+  // colour key has no colour for a door, so the importer has nothing to emit.
+  // The gap they describe is real geometry — the dividing wall runs y 128-344,
+  // leaving the top of it open — and the rectangle is made a little wider than
+  // the gap so that walking through it always registers.
+  doors: [
+    { id: 'garden', x: 478, y: 48, w: 24, h: 80 },
+  ],
 
   // Footsteps are not timed at all: one plays every time the bob completes a
   // cycle, so a footfall lands exactly when the face touches down. The cadence
@@ -103,7 +115,12 @@ export const AUDIO = {
   ambience: {
     roomTone: { volume: 0.10 },
     music:    { volume: 0.30, near: 70, far: 330 },
-    garden:   { volume: 0.26, near: 60, far: 270 },
+    // Two radii, because a wall is between you and the birds. `near`/`far` is
+    // what you hear standing in the garden itself. `throughDoor` is the ceiling
+    // on what reaches you in the café, measured from the doorway — so the
+    // garden fades in as you approach the opening and is gone by mid-room,
+    // instead of bleeding through eight pixels of solid wall.
+    garden:   { volume: 0.26, near: 60, far: 270, throughDoor: { near: 24, far: 90 } },
   },
 
   // Where the positional loops come from.

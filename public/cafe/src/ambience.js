@@ -200,6 +200,35 @@ export function jukeboxEmitter(room) {
   return { x: zone.x + zone.w / 2, y: zone.y + zone.h / 2 };
 }
 
+// The garden doorway, as a point. The doors are listed for their creak, but the
+// gap they describe is also the only hole in the dividing wall, which makes it
+// the only route sound has into the café.
+function doorway(id) {
+  const door = (AUDIO.doors || []).find((d) => d.id === id);
+  return door ? { x: door.x + door.w / 2, y: door.y + door.h / 2 } : null;
+}
+
+// What the birds are worth from where you are standing.
+//
+// In the garden you hear them directly. In the café you hear them through the
+// doorway, and the doorway is a ceiling rather than a second source: the garden
+// can never be louder than the hole it comes through. The two agree at the
+// opening — standing in it, the ceiling is 1 and the direct term takes over —
+// so crossing the threshold is continuous and not a step.
+function gardenGain(listener) {
+  const g = AUDIO.ambience.garden;
+  const direct = gainFor(AUDIO.emitters.garden, listener.x, listener.y, g.near, g.far);
+
+  const door = doorway('garden');
+  if (!door || !g.throughDoor) return direct;
+
+  const dividerX = door.x;
+  if (listener.x >= dividerX) return direct;
+
+  const through = gainFor(door, listener.x, listener.y, g.throughDoor.near, g.throughDoor.far);
+  return Math.min(direct, through);
+}
+
 export function start() {
   const ctx = context();
   if (started || !ctx || !bus()) return;
@@ -236,10 +265,9 @@ export function update(listener, room, musicOn = true) {
   const garden = AUDIO.ambience.garden;
 
   const toJukebox = gainFor(jukeboxEmitter(room), listener.x, listener.y, music.near, music.far);
-  const toGarden = gainFor(AUDIO.emitters.garden, listener.x, listener.y, garden.near, garden.far);
 
   loops.music.to(musicOn ? music.volume * toJukebox : 0);
-  loops.garden.to(garden.volume * toGarden);
+  loops.garden.to(garden.volume * gardenGain(listener));
 
   scheduleAhead(ctx);
 }

@@ -186,7 +186,12 @@ player's first click — not a suspended context, no context at all — so autop
 is impossible by construction rather than by policy. Seven one-shots (click,
 pick, door, step, sit, stand, coffee) and three loops (room tone, jukebox,
 garden), all generated at runtime out of oscillators and filtered noise: no
-files, no dependency, nothing to license. Sounds are driven by the difference in
+files, no dependency, nothing to license. Doors creak, open and close — noise
+through a narrow bandpass whose centre both slides and wobbles, which is the
+difference between wood and a whistle. The garden is audible only through the
+doorway, because there is a wall in the way: in the café the opening is a
+ceiling on the birds rather than a second source, which keeps the crossing
+continuous instead of a step. Sounds are driven by the difference in
 a player's state across a tick, never from `applyInteraction`, so a player
 arriving over the wire will sound without new code, and everyone but you is
 heard at the volume their distance earns. A footstep is a completed bob cycle,
@@ -265,6 +270,11 @@ garden through a doorway, L of bar rail with stools. **21 seats.**
   garden, with only the room tone underneath. That may be exactly right — you
   are between two things — or the falloff radii in `AUDIO.ambience` may want
   widening. A judgement for ears, not for code.
+- Doors and the garden both live in `AUDIO` in config rather than in
+  `room.json`, because the layout colour key has no colour for either. The
+  proper fix is a door colour in `LAYOUT.md` and `import-map.html` so the
+  drawing stays the single source of truth — worth doing before there are many
+  more of them.
 - The music is four chords at 68bpm generated at runtime. Whether the café ever
   gets real tracks is a question about taste and rights, not about code.
 - `main` still has a placeholder `app/cafe/page.jsx` holding the `/cafe` URL.

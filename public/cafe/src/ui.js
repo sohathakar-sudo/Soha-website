@@ -107,8 +107,12 @@ export function showTitle() {
   return new Promise((resolve) => {
     function start() {
       startAudio();
-      // The one moment of arrival the café has: you open the door and it rings.
-      play('door');
+      // The one moment of arrival the café has, and it is three sounds rather
+      // than one: the door swings open, the bell over it rings, and the door
+      // falls shut behind you.
+      play('doorOpen');
+      play('door', 1, 0.18);
+      play('doorClose', 1, 0.55);
 
       const name = cleanName(nameInput.value);
       write(NAME_KEY, name);

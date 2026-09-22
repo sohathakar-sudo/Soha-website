@@ -69,6 +69,36 @@ function tone(ctx, out, { freq, type = 'sine', peak, attack, decay, at, glideTo 
   osc.stop(at + attack + decay + 0.02);
 }
 
+// A creak. Noise through a very narrow bandpass, with the centre frequency
+// sliding as the door swings — and wobbling as it slides, because a hinge does
+// not turn smoothly. That wobble is the whole difference between wood and a
+// whistle.
+function creak(ctx, out, { from, to, peak, duration, at, wobble = 10 }) {
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuffer(ctx);
+  src.loop = true;
+
+  const band = ctx.createBiquadFilter();
+  band.type = 'bandpass';
+  band.Q.value = 22;
+  band.frequency.setValueAtTime(from, at);
+  band.frequency.linearRampToValueAtTime(to, at + duration);
+
+  const lfo = ctx.createOscillator();
+  lfo.type = 'triangle';
+  lfo.frequency.value = wobble;
+  const depth = ctx.createGain();
+  depth.gain.value = from * 0.2;
+  lfo.connect(depth).connect(band.frequency);
+  lfo.start(at);
+  lfo.stop(at + duration + 0.05);
+
+  const env = envelope(ctx, peak, 0.03, duration, at);
+  src.connect(band).connect(env).connect(out);
+  src.start(at);
+  src.stop(at + duration + 0.06);
+}
+
 // A little variation, so a run of footsteps doesn't sound like a machine.
 const vary = (value, amount) => value * (1 + (Math.random() * 2 - 1) * amount);
 
@@ -118,6 +148,21 @@ const RECIPES = {
     tone(ctx, out, { freq: 90, peak: 0.22, attack: 0.008, decay: 0.14, at, glideTo: 150 });
   },
 
+  // The latch letting go, then the swing. Rising, because it is opening.
+  doorOpen(ctx, out, at) {
+    burst(ctx, out, { freq: 2200, q: 3, peak: 0.35, attack: 0.002, decay: 0.03, at });
+    burst(ctx, out, { freq: 180, type: 'lowpass', q: 0.7, peak: 0.3, attack: 0.02, decay: 0.3, at: at + 0.02 });
+    creak(ctx, out, { from: 300, to: 520, peak: 0.55, duration: 0.42, at: at + 0.04, wobble: 11 });
+  },
+
+  // The same hinge going the other way, and then the door actually arriving:
+  // the frame first, the latch a moment behind it.
+  doorClose(ctx, out, at) {
+    creak(ctx, out, { from: 500, to: 310, peak: 0.4, duration: 0.3, at, wobble: 8 });
+    burst(ctx, out, { freq: 150, type: 'lowpass', q: 0.8, peak: 0.9, attack: 0.004, decay: 0.16, at: at + 0.32 });
+    burst(ctx, out, { freq: 2600, q: 4, peak: 0.3, attack: 0.002, decay: 0.035, at: at + 0.35 });
+  },
+
   // A pour that climbs as the cup fills, then the cup set down on the counter.
   coffee(ctx, out, at) {
     burst(ctx, out, {
@@ -161,7 +206,9 @@ export async function preload() {
 // --- Playing ---------------------------------------------------------------
 // `gain` is an extra multiplier on top of the sound's configured volume, for
 // callers that want one quieter than another — a footstep across the room, say.
-export function play(name, gain = 1) {
+// `delay` schedules it that many seconds out, which is how a door opens, a bell
+// rings and the door closes again as one arrival rather than three noises.
+export function play(name, gain = 1, delay = 0) {
   // No bus means audio has never been unlocked, so there is nothing to play
   // into. A context that exists but is still resuming is fine: whatever gets
   // scheduled now sounds the moment it starts running.
@@ -172,7 +219,7 @@ export function play(name, gain = 1) {
   out.gain.value = (AUDIO.volume[name] ?? 0.3) * gain;
   out.connect(bus());
 
-  const at = ctx.currentTime;
+  const at = ctx.currentTime + delay;
   const recorded = buffers.get(name);
 
   if (recorded) {

@@ -108,6 +108,18 @@ function takenSeats(player) {
   return taken;
 }
 
+// The doorway a point is standing in, or null. Doors are not zones in
+// room.json — the layout colour key has no colour for one — so they are matched
+// against the list in config rather than through room.zoneAt.
+function doorAt(x, y) {
+  for (const door of AUDIO.doors || []) {
+    if (x >= door.x && x <= door.x + door.w && y >= door.y && y <= door.y + door.h) {
+      return door.id;
+    }
+  }
+  return null;
+}
+
 // How loud a thing one player does sounds to the player at the keyboard.
 // Everyone is heard from where you are standing, which is the whole reason the
 // room is worth being in.
@@ -125,8 +137,22 @@ function loudnessOf(player) {
 // player arriving over the wire moves through exactly the same path, so other
 // people's footsteps and chairs will sound without a line of new code.
 function soundChanges(player, before, renderState, footfallsBefore) {
+  // Which doorway they are in is tracked whether or not anybody can hear it.
+  // Otherwise someone who walks through a door while out of earshot slams it
+  // the moment they come back into range.
+  const doorBefore = renderState.doorId;
+  const doorNow = doorAt(player.x, player.y);
+  renderState.doorId = doorNow;
+
   const loudness = loudnessOf(player);
   if (loudness <= 0) return;
+
+  // Stepping into a doorway swings it open; stepping out lets it fall shut.
+  // undefined rather than null is the first look at this player, and someone
+  // spawning in a doorway should not arrive by slamming it.
+  if (doorBefore !== undefined && doorNow !== doorBefore) {
+    play(doorNow ? 'doorOpen' : 'doorClose', loudness);
+  }
 
   if (player.state !== before.state) {
     play(player.state === 'sitting' ? 'sit' : 'stand', loudness);

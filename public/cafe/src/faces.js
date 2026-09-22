@@ -43,6 +43,7 @@ export function createRenderState() {
     amplitude: 0,  // 0 settled, 1 fully bobbing
     idleFor: 0,    // seconds since they last moved
     footfalls: 0,  // completed bob cycles; a footstep sounds on each one
+    doorId: undefined,  // the doorway they are standing in; undefined until first looked at
     lastX: null,
     lastY: null,
   };

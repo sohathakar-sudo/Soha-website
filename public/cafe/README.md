@@ -123,6 +123,16 @@ garden are at opposite ends of a 640px room.
 outside a user gesture, so rather than starting one muted and hoping, there is
 no AudioContext at all until the first click on the title screen.
 
+Doors creak. Walking into the garden doorway swings it open and walking out
+lets it fall shut, and arriving through the front door is three sounds rather
+than one — the swing, the bell over it, then the door closing behind you.
+
+The garden is only heard **through** that doorway. There is a solid wall between
+the café and the birds, so in the café the doorway is a ceiling on how loud they
+can get: they fade in over the last stretch of floor before the opening and are
+gone by mid-room. Step through and you hear them directly instead. The two agree
+at the threshold, so crossing it is a fade and not a jump.
+
 **There is no mute button and no volume slider.** Your operating system has a
 volume key and your browser can mute the tab, and both are better than anything
 this café could draw in a corner.
@@ -137,8 +147,8 @@ against, replaced by the real thing later.
 
 To replace one with a recording:
 
-1. Drop `assets/audio/<name>.mp3` in — `door`, `step`, `sit`, `stand`,
-   `coffee`, `click` or `pick`.
+1. Drop `assets/audio/<name>.mp3` in — `door`, `doorOpen`, `doorClose`,
+   `step`, `sit`, `stand`, `coffee`, `click` or `pick`.
 2. Add that name to the `files` list in `assets/audio/manifest.json`.
 
 No code changes. The manifest exists so the café makes exactly one request at
@@ -148,7 +158,13 @@ startup instead of seven failing ones.
 
 Every number is in `AUDIO` in `src/config.js`: the mix, and the `near` and `far`
 radii that decide how far the jukebox carries. `near` is where a loop is at full
-volume, `far` where it reaches silence.
+volume, `far` where it reaches silence. The garden has a second pair under
+`throughDoor` — the same two radii measured from the doorway, which is what
+limits it inside the café.
+
+`AUDIO.doors` lists the doorways that creak. They are written down rather than
+read off `room.json` because the layout colour key has no colour for a door, so
+the importer has nothing to emit for one.
 
 Footsteps have no setting. One plays every time the walk bob completes a cycle,
 so a footfall lands exactly when the face touches down — the sound of a step and
