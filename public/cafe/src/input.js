@@ -14,8 +14,22 @@ const MOVEMENT = [...LEFT, ...RIGHT, ...UP, ...DOWN];
 const PRESSED = new Set();
 const EDGE_TRIGGERED = ['Enter', 'Backquote'];
 
+// Is the player typing rather than walking? The game listens on the window, so
+// without this it eats W, A, S, D, the arrows, Enter and the backtick before
+// they reach a text box — which is most of a name.
+//
+// Bailing out is better than only skipping preventDefault: someone typing their
+// name should not also be marching across the room behind the title screen.
+function isTyping(event) {
+  const el = event.target;
+  if (!el || !el.tagName) return false;
+  const tag = el.tagName.toLowerCase();
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
+}
+
 export function attachInput(target = window) {
   target.addEventListener('keydown', (e) => {
+    if (isTyping(e)) return;
     if (e.repeat) {
       // Holding a key must not re-fire an edge-triggered action.
       if (EDGE_TRIGGERED.includes(e.code)) return;
@@ -29,6 +43,7 @@ export function attachInput(target = window) {
   });
 
   target.addEventListener('keyup', (e) => {
+    if (isTyping(e)) return;
     HELD.delete(e.code);
   });
 
