@@ -264,8 +264,8 @@ function tableSeats(rect) {
       const at = along(i, perSide);
       if (side === 'north') seats.push({ x: at, y: rect.y - SEAT_NORTH });
       if (side === 'south') seats.push({ x: at, y: rect.y + rect.h + SEAT_OUT });
-      if (side === 'west')  seats.push({ x: rect.x - SEAT_OUT, y: at + 8 });
-      if (side === 'east')  seats.push({ x: rect.x + rect.w + SEAT_OUT, y: at + 8 });
+      if (side === 'west')  seats.push({ x: rect.x - SEAT_OUT, y: at });
+      if (side === 'east')  seats.push({ x: rect.x + rect.w + SEAT_OUT, y: at });
     }
   }
   return seats;

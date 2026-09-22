@@ -138,13 +138,16 @@ export function drawShadow(ctx, x, y, bob = 0) {
   ctx.restore();
 }
 
-export function drawFace(ctx, faceId, x, y, bob = 0, angle = 0) {
+export function drawFace(ctx, faceId, x, y, bob = 0, angle = 0, hover = FACE.hover) {
   const image = faceImage(faceId);
   if (!image) return;
 
-  // (x, y) is the ground point; the face hangs above it.
+  // (x, y) is the ground point; the face hangs above it. How far above is the
+  // caller's business: standing, it is head height, and sitting, it is nothing
+  // at all — the seat point is the middle of a drawn chair, and that is exactly
+  // where the head belongs.
   const left = Math.round(x - FACE.size / 2);
-  const top = Math.round(y - FACE.hover - FACE.size / 2 + bob);
+  const top = Math.round(y - hover - FACE.size / 2 + bob);
 
   if (!angle) {
     ctx.drawImage(image, left, top, FACE.size, FACE.size);

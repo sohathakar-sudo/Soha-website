@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "cafe": "node scripts/serve-cafe.mjs"
+    "cafe": "node scripts/serve-cafe.mjs",
+    "check-room": "node scripts/check-room.mjs"
   },
   "repository": {
     "type": "git",

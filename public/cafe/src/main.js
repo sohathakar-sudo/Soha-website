@@ -177,14 +177,19 @@ function deskSound(player) {
   return Math.random() < 0.2 ? other : usual;
 }
 
-// The table a seated player is at: the table solid nearest their seat.
+// The surface a seated player is at. A table in the café, a rail in the garden
+// — either way it is the thing in front of them, and it is what a laptop and a
+// cup get put down on.
 function tableUnder(player) {
   if (!room) return null;
   let best = null, bestD = 64 * 64;
   for (const s of room.solids) {
-    if (s.kind !== 'table') continue;
-    const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
-    const d = (cx - player.x) ** 2 + (cy - player.y) ** 2;
+    if (s.kind !== 'table' && s.kind !== 'bar') continue;
+    // Distance to the nearest point on it rather than to its middle: a rail is
+    // long, and somebody sitting at one end is not sitting far away.
+    const nx = Math.min(Math.max(player.x, s.x), s.x + s.w);
+    const ny = Math.min(Math.max(player.y, s.y), s.y + s.h);
+    const d = (nx - player.x) ** 2 + (ny - player.y) ** 2;
     if (d < bestD) { bestD = d; best = s; }
   }
   return best;
@@ -206,8 +211,12 @@ function faceTheTable(player, renderState) {
   const table = tableUnder(player);
   if (!table) return;
 
-  const cx = table.x + table.w / 2, cy = table.y + table.h / 2;
+  // Aim at the nearest point on the surface, so a rail is judged by the edge
+  // beside you rather than by its distant middle.
+  const cx = Math.min(Math.max(player.x, table.x), table.x + table.w);
+  const cy = Math.min(Math.max(player.y, table.y), table.y + table.h);
   const dx = cx - player.x, dy = cy - player.y;
+  if (dx === 0 && dy === 0) return;
 
   // Square on to the nearest edge: a hand-drawn face has no in-between poses.
   const angle = Math.abs(dx) > Math.abs(dy)

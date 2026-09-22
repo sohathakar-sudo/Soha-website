@@ -1,5 +1,6 @@
 import { VIEW } from './config.js';
 import { drawShadow, drawFace, drawProp } from './faces.js';
+import { isSeated } from './player.js';
 
 // Where a carried cup rides relative to the ground point: off to one side and
 // a little above the floor, so it reads as held rather than dropped.
@@ -48,7 +49,9 @@ export function drawPlayers(ctx, players, renderStates) {
     }
 
     drawShadow(ctx, player.x, player.y, bob);
-    drawFace(ctx, player.faceId, player.x, player.y, bob, state.faceAngle || 0);
+    // Seated, the head sits in the chair rather than floating over it.
+    drawFace(ctx, player.faceId, player.x, player.y, bob, state.faceAngle || 0,
+             isSeated(player) ? 0 : undefined);
 
     // A coffee is carried beside them while they walk, and set down on the
     // table the moment they sit.
