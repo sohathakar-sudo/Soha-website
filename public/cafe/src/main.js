@@ -177,6 +177,38 @@ function deskSound(player) {
   return Math.random() < 0.2 ? other : usual;
 }
 
+// Somebody else, moving between the messages that describe them.
+//
+// Their position is eased rather than assigned, and it is the player's own
+// position that is eased rather than a separate one kept for drawing. Depth
+// sorting, the walk bob, footstep counting, which way they are facing and where
+// their laptop sits all read x and y — smoothing only the drawing would leave
+// every one of those lurching a frame out of step with the picture.
+function followTarget(player, renderState, dt) {
+  const { targetX, targetY } = renderState;
+  if (targetX === null) return;
+
+  const dx = targetX - player.x;
+  const dy = targetY - player.y;
+  const gap = Math.hypot(dx, dy);
+
+  // Close enough, or further than a walk could have taken them. The second one
+  // is a real teleport — sitting down snaps you onto a seat — and gliding there
+  // would look like being dragged.
+  const { arriveWithin, teleportOver, seconds } = NET.smoothing;
+  if (gap <= arriveWithin || gap >= teleportOver) {
+    player.x = targetX;
+    player.y = targetY;
+    return;
+  }
+
+  // Exponential: a fixed share of whatever is left, every second. Framerate
+  // independent, and it settles rather than oscillating around the target.
+  const t = 1 - Math.exp(-dt / seconds);
+  player.x += dx * t;
+  player.y += dy * t;
+}
+
 // The surface a seated player is at. A table in the café, a rail in the garden
 // — either way it is the thing in front of them, and it is what a laptop and a
 // cup get put down on.
@@ -349,7 +381,10 @@ function stepPlayer(player, input, dt) {
   // same tick's movement.
   Object.assign(player, applyInteraction(player, input, room, takenSeats(player)));
 
-  if (!isSeated(player)) {
+  if (player.id !== LOCAL_ID) {
+    // Somebody else. They decide where they are; we only catch up to it.
+    followTarget(player, renderState, dt);
+  } else if (!isSeated(player)) {
     const moved = applyMovement(player, input, dt, room);
     player.x = moved.x;
     player.y = moved.y;
@@ -529,8 +564,37 @@ net.onPeer((incoming) => {
   if (!incoming || !incoming.id || incoming.id === LOCAL_ID) return;
 
   const existing = players.get(incoming.id);
-  if (existing) Object.assign(existing, incoming);
-  else addPlayer(createPlayer(incoming));
+  if (!existing) {
+    // First sight: put them exactly where they said. Nobody glides in from
+    // the origin.
+    const player = addPlayer(createPlayer(incoming));
+    Object.assign(player, incoming);
+    const fresh = renderStates.get(player.id);
+    fresh.targetX = player.x;
+    fresh.targetY = player.y;
+    return;
+  }
+
+  // Everything except where they are is copied straight down — it is theirs to
+  // declare. Position becomes a target instead, because it arrives a few times
+  // a second and has to last sixty frames.
+  const { x, y, ...rest } = incoming;
+  const changedState = rest.state !== undefined && rest.state !== existing.state;
+  Object.assign(existing, rest);
+
+  const renderState = renderStates.get(existing.id);
+  renderState.targetX = x;
+  renderState.targetY = y;
+
+  // Sitting down and standing up are not journeys. Sitting snaps you onto a
+  // seat, so easing towards it looks like being dragged there over half a
+  // second, and it is the moment the wire is most obviously behind. A change of
+  // state is the honest signal for this — far better than guessing at a
+  // distance, which was the first attempt and let a fifty-pixel seat snap glide.
+  if (changedState) {
+    existing.x = x;
+    existing.y = y;
+  }
 });
 
 net.onGone((id) => {

@@ -183,6 +183,17 @@ itself: render state needs a target position, and the draw path needs to walk
 towards it rather than snap. Render state is the right home — it never travels,
 and it is already created lazily for anyone appearing mid-session.
 
+> **Built.** The player's own `x`/`y` are eased, not a separate position kept
+> for drawing — depth sorting, the bob, footstep counting, facing and the laptop
+> all read those, and smoothing only the picture would leave every one of them a
+> frame out of step with it.
+>
+> **Discrete events are not interpolated.** Sitting down snaps you onto a seat,
+> and easing towards it looks like being dragged there over half a second. The
+> first attempt guessed at this with a distance threshold and let a 50px seat
+> snap glide straight through it. A **change of state** is the honest signal, and
+> it lands in one frame.
+
 ---
 
 ## 6. Roughly the shape
@@ -214,7 +225,11 @@ this kind of before/after diffing — this is the same idea pointed at the wire.
 1. ~~**Two clients, one room, positions only.**~~ **Done.** `npm run relay`, then
    open the café twice. Two browsers see each other, with names and faces, and
    walking propagates. Send-on-change is in from the start, measured below.
-2. **Interpolation.** The difference between a demo and a place.
+2. ~~**Interpolation.**~~ **Done.** Measured on the watching browser, sampling
+   its copy of a walker once per frame: frames where they did not move at all
+   went from **88% to 8%**, the biggest single-frame jump from **7px to 2.4px**,
+   and the median move is **0.96px** — which is one frame of walking at 60px/s,
+   so they move like somebody walking rather than like a message arriving.
 3. ~~**Send-on-change.**~~ **Done with step 1**, because it shapes the message
    format and retrofitting it would mean revisiting everything. Measured, out of
    a real browser: **4.6 messages a second while walking, and one in twenty

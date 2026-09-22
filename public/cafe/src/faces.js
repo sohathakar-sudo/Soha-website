@@ -72,6 +72,11 @@ export function createRenderState() {
     cupAt: null,
     lastX: null,
     lastY: null,
+    // Where the wire last said somebody else is. Their drawn position eases
+    // towards it rather than jumping to it. Null for the local player, who
+    // needs no target: they are already where they are.
+    targetX: null,
+    targetY: null,
   };
 }
 

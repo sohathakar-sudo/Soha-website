@@ -201,6 +201,22 @@ export const NET = {
   // Even with nothing happening, say so occasionally — it is how the other end
   // knows the difference between still and gone.
   heartbeatSeconds: 15,
+
+  // Messages land a few times a second; frames happen sixty times a second.
+  // Without this, everybody else stands still and then jumps.
+  smoothing: {
+    // Roughly how long to close the gap. A time constant rather than a speed,
+    // so arriving settles instead of overshooting and coming back.
+    seconds: 0.12,
+    // Close enough. Without a floor it approaches forever, never quite lands,
+    // and nobody is ever judged to be standing still.
+    arriveWithin: 0.4,
+    // Further than this was not a walk. Sitting down snaps you onto a seat, and
+    // that should land rather than glide across the room. Same idea as
+    // FACE.maxStepPx, which tells the bob the difference between a stride and a
+    // teleport.
+    teleportOver: 56,
+  },
 };
 
 export const PATHS = {
