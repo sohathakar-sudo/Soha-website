@@ -438,6 +438,10 @@ async function leave() {
   loop.stop();
   if (editor && editor.active) editor.toggle();
 
+  // Tell the room on the way out. Without this everyone else watches your face
+  // stand frozen on the welcome mat until the timeout gets round to you.
+  net.announceGone();
+
   const me = players.get(LOCAL_ID);
   removePlayer(LOCAL_ID);
 
@@ -464,6 +468,8 @@ function enter(choice, coffees) {
   addPlayer(me);
 
   leaving = false;
+  // Walking back in is news, whatever the state happens to look like.
+  lastSent = null;
   ambience.start();
   loop.start();
 }

@@ -18,6 +18,13 @@ import { createHash } from 'node:crypto';
 const PORT = Number(process.env.PORT) || 8001;
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
+// A socket that has said nothing for this long is not a person any more. A
+// closed laptop or a dropped connection does not send anything — including a
+// close — so silence is the only evidence there is. Clients heartbeat every
+// 15s; a minute is four missed ones.
+const IDLE_SECONDS = 60;
+const SWEEP_SECONDS = 10;
+
 const peers = new Set();
 
 // --- framing ---------------------------------------------------------------
@@ -102,15 +109,21 @@ server.on('upgrade', (req, socket) => {
   );
   socket.setNoDelay(true);
 
-  const peer = { socket, buffer: Buffer.alloc(0), id: null, last: null };
+  const peer = { socket, buffer: Buffer.alloc(0), id: null, last: null, heard: Date.now() };
   peers.add(peer);
 
   socket.on('data', (chunk) => {
     peer.buffer = Buffer.concat([peer.buffer, chunk]);
     drain(peer, (text) => {
+      peer.heard = Date.now();
+
       let message;
       try { message = JSON.parse(text); } catch { return; }
       if (!message || typeof message !== 'object') return;
+
+      // Said goodbye on the way out. Tell the room straight away rather than
+      // making everybody wait out a timeout.
+      if (message.type === 'bye') { drop(peer); return; }
 
       if (message.type === 'state' && message.player) {
         const first = peer.id === null;
@@ -132,6 +145,18 @@ server.on('upgrade', (req, socket) => {
   socket.on('error', () => drop(peer));
   socket.on('close', () => drop(peer));
 });
+
+// Anyone who has gone quiet gets shown out, so the room does not fill up with
+// people who are not there.
+setInterval(() => {
+  const cutoff = Date.now() - IDLE_SECONDS * 1000;
+  for (const peer of [...peers]) {
+    if (peer.heard < cutoff) {
+      console.log(`  quiet ${peer.id ?? '(unannounced)'} for ${IDLE_SECONDS}s`);
+      drop(peer);
+    }
+  }
+}, SWEEP_SECONDS * 1000).unref();
 
 server.listen(PORT, () => {
   console.log(`\n  café relay  ->  ws://localhost:${PORT}`);

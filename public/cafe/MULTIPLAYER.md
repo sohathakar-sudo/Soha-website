@@ -52,7 +52,7 @@ What to look for, in order:
 |---|---|
 | Messages per month | the binding constraint — see §3 |
 | Does the free tier sleep? | **disqualifying.** A café that disconnects you when it is quiet is worse than no café |
-| Presence built in | saves writing join/leave and timeouts by hand |
+| Presence built in | nice, but no longer required — the client times peers out itself, which is what makes this portable to a relay that has no opinion about presence |
 | One room, or many | one is enough, and one is cheaper |
 
 Everything else — the game, the art, the sound — stays exactly where it is, a
@@ -236,7 +236,12 @@ this kind of before/after diffing — this is the same idea pointed at the wire.
    seconds while sitting** — that one being the heartbeat. Walking needed a
    ceiling as well as a floor; without `maxMovesPerSecond` it sent on nearly
    every tick, at 15.6/s.
-4. **Presence and timeouts.** People close laptops; they do not press the mat.
+4. ~~**Presence and timeouts.**~~ **Done.** Three ways to go, all measured:
+   through the welcome mat (**0.1s**), closing the tab (**0.0s**), and going
+   silent without closing anything — a shut laptop — which times out on the
+   heartbeat. Reconnection came with it, since a dropped socket that never
+   returns is indistinguishable from being alone: the relay was killed
+   mid-session, both rooms emptied, and both rejoined when it came back.
 5. **Dormancy** (§3a). Needs presence working first, and is the step that makes
    the usual case — one person, alone — free.
 6. **The empty room.** See §8.

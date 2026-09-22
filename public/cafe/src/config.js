@@ -202,6 +202,27 @@ export const NET = {
   // knows the difference between still and gone.
   heartbeatSeconds: 15,
 
+  // Who is still here.
+  //
+  // A clean departure says so. Everything else — a shut laptop, dropped wifi, a
+  // crashed tab — says nothing at all, and the socket can stay half-open for
+  // minutes. So silence has to be a signal too, and the heartbeat above is what
+  // makes silence mean something.
+  presence: {
+    // No word for this long and they have gone. Three times the heartbeat, so
+    // two can go missing without anybody being wrongly shown the door.
+    timeoutSeconds: 45,
+    sweepSeconds: 5,
+  },
+
+  // A dropped connection that never comes back is the same as being alone, and
+  // it does not announce itself. Try again, backing off so a relay that is down
+  // is not also being hammered.
+  reconnect: {
+    firstDelaySeconds: 1,
+    maxDelaySeconds: 30,
+  },
+
   // Messages land a few times a second; frames happen sixty times a second.
   // Without this, everybody else stands still and then jumps.
   smoothing: {
