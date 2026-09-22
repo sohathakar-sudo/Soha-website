@@ -121,6 +121,19 @@ public/cafe/
 4. Paste over `data/room.json`. Fine-tune in the debug editor (backtick) if
    needed, then Copy JSON from there.
 
+**The drawing's colours carry meaning**, and the collision was read out of them
+rather than typed in. In the garden:
+
+| Colour | What it is | In the game |
+|---|---|---|
+| `#f3f1ed` pale | the outdoor table, and the doorway box | table is solid, doorway is not |
+| `#ffffff` white | walkable path | floor |
+| `#bab49e` tan | garden ground, a different tone so the two rooms read apart | floor |
+| `#766b40` / `#b9b47c` olive | tree canopies, except the vertical one, which is the hedge | canopies go in `room-fg.png` and draw **over** people; the hedge is solid |
+
+Trees are overhead. You walk under them and they cover you — that is what the
+cover plate is for, and the garden is the first thing in it.
+
 Full dimensions in `LAYOUT.md`. The ones that matter most:
 
 | | |
