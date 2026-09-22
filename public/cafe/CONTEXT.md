@@ -228,6 +228,7 @@ garden through a doorway, L of bar rail with stools. **21 seats.**
 | The jukebox faces whichever side has most standing room | people queue at it |
 | Layout comes from a drawing, not from code | I was inventing layouts nobody wanted |
 | Small talk over voice chat | see `BACKLOG.md`; voice means consent, moderation and a bill that scales with popularity, for a feeling text mostly delivers |
+| Whole-number scaling below 2x dpr, fill at or above it | "never fractional" was protecting against uneven pixels, not against fractions. On a 1x screen a 2.36x scale is glaring; on a retina one it disappears into the device pixels, and a 640x360 game marooned in a black box on a large display is the worse problem |
 | No dependencies, no build step | the folder must stay droppable anywhere |
 | A room has one volume | the café does not get quieter at the counter or in the middle of the floor. Distance inside a space was tried and was wrong: it made the room feel like a set of pools rather than a place. Only a wall attenuates, and the doorway is the one hole in it |
 | `working` is a predicate, never a state | `isWorking()` asks a question about the two states that exist. Reintroducing a third was the mistake that seat facing and the laptop square came with |

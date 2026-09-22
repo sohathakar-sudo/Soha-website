@@ -6,6 +6,14 @@ export const VIEW = {
   height: 360,
   maxScale: 8,
   mobileBreakpoint: 700,
+  // Below this device pixel ratio the game scales by whole numbers only and
+  // letterboxes whatever is left over, because a fractional scale on a 1x
+  // screen puts some pixels two across and others three, and on 2px line work
+  // that is glaring. At 2x and above there are enough device pixels underneath
+  // that the unevenness stops being visible, so the picture is allowed to fill
+  // the window instead. Raise this above 2 to go back to whole numbers
+  // everywhere.
+  fluidMinDpr: 2,
 };
 
 export const LOOP = {

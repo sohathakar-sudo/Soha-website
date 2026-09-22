@@ -271,9 +271,30 @@ assets/               the art
 tools/                layout template, layout importer, room art, face prep
 ```
 
-**Rendering.** Everything is authored at 640 × 360 and scaled up by the largest
-whole number that fits the window, centred, letterboxed. Fractional scaling
-would blur, so it never happens.
+**Rendering.** Everything is authored at 640 × 360 — the room, the people, the
+HUD, the editor — into a buffer canvas that is always exactly that size. One
+`drawImage` per frame scales it onto the canvas the page can see, and that blit
+is the only thing that knows how big a screen is. Keeping it to one step is what
+stops the 8px HUD text turning into smooth type the moment the window grows.
+
+How much it scales by depends on the display:
+
+| | |
+|---|---|
+| Below 2× device pixel ratio | the largest **whole number** that fits, centred, letterboxed |
+| 2× and above | scaled to **fill**, fractionally, aspect ratio preserved |
+
+A fractional scale on an ordinary screen puts some pixels two across and others
+three, which on 2px line work is glaring — hence the whole numbers. On a retina
+display there are four or five device pixels under every pixel of the room, the
+unevenness disappears into them, and the black border is no longer worth paying
+for: a 1512px window goes from 1280px of game and 232px of nothing to filling
+the width.
+
+640 × 360 is exactly 16:9 and a browser window rarely is, so a thin bar on one
+axis remains either way. Removing that one means cropping the room or stretching
+it, and neither is worth it. `VIEW.fluidMinDpr` in `src/config.js` is the
+threshold; raise it above 2 to go back to whole numbers everywhere.
 
 **The ground point.** `player.x, player.y` is the spot on the floor, not the
 centre of the face. Collision (a 16 × 8 box), depth sorting and seat snapping

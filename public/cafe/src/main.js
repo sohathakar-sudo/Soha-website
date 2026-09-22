@@ -14,27 +14,61 @@ import * as ambience from './ambience.js';
 import * as net from './net.js';
 
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d', { alpha: false });
+const display = canvas.getContext('2d', { alpha: false });
 
-canvas.width = VIEW.width;
-canvas.height = VIEW.height;
+// --- The two canvases ------------------------------------------------------
+// Everything is drawn into a buffer that is 640x360 and stays that way: the
+// room, the people, the HUD, the editor. Every draw call in the game works in
+// those coordinates and never learns that a screen has a size.
+//
+// Only the last step scales, one drawImage per frame onto the canvas the page
+// can see. That is what keeps the look honest — the pixels are still authored
+// at native resolution, so the 8px HUD text stays chunky instead of turning
+// into smooth type the moment the window gets bigger.
+const buffer = document.createElement('canvas');
+buffer.width = VIEW.width;
+buffer.height = VIEW.height;
+const ctx = buffer.getContext('2d', { alpha: false });
 
-// --- Integer scaling -------------------------------------------------------
-// The backing store stays at native resolution. Only the CSS size changes, so
-// every pixel is upscaled by a whole number and nothing ever blurs.
-// Scale against the element the canvas sits in, not the window, so the game also
-// behaves when it is embedded in a page that has other content around it.
+// --- Scaling ---------------------------------------------------------------
+// Scale against the element the canvas sits in, not the window, so the game
+// also behaves when embedded in a page with other content around it.
+//
+// Whole-number scaling is the rule on an ordinary screen: it is the only way a
+// 640x360 picture reaches a 1512px window without some pixels landing two
+// across and others three, which on 2px line work is glaring. The cost is the
+// letterbox — 1512 / 640 is 2.36, the floor of that is 2, and the leftover
+// 232px is black.
+//
+// On a 2x display that cost stops being worth paying. There are four or five
+// device pixels under every pixel of the room, the unevenness disappears into
+// them, and the window can simply be filled. Aspect ratio is always preserved,
+// so a thin bar on one axis remains: 640x360 is exactly 16:9 and a browser
+// window is not.
 const stage = canvas.parentElement;
 let scale = 1;
 
 function resize() {
   const availW = stage.clientWidth || window.innerWidth;
   const availH = stage.clientHeight || window.innerHeight;
-  const fitX = Math.floor(availW / VIEW.width);
-  const fitY = Math.floor(availH / VIEW.height);
-  scale = Math.max(1, Math.min(fitX, fitY, VIEW.maxScale));
+  const dpr = window.devicePixelRatio || 1;
+
+  const fitX = availW / VIEW.width;
+  const fitY = availH / VIEW.height;
+  const fit = Math.min(fitX, fitY, VIEW.maxScale);
+
+  scale = Math.max(1, dpr >= VIEW.fluidMinDpr ? fit : Math.floor(fit));
+
+  // Styled in CSS pixels, backed in device pixels, so the blit has the real
+  // resolution of the screen to land on rather than being stretched by the
+  // compositor afterwards.
   canvas.style.width = `${VIEW.width * scale}px`;
   canvas.style.height = `${VIEW.height * scale}px`;
+  canvas.width = Math.round(VIEW.width * scale * dpr);
+  canvas.height = Math.round(VIEW.height * scale * dpr);
+
+  // Resizing a canvas resets its context, so this has to be set again here.
+  display.imageSmoothingEnabled = false;
   ctx.imageSmoothingEnabled = false;
 }
 
@@ -305,6 +339,9 @@ function render() {
   } else {
     drawHud(ctx, me, promptFor(me));
   }
+
+  // And the one scaling step: 640x360 onto however big the screen is.
+  display.drawImage(buffer, 0, 0, canvas.width, canvas.height);
 }
 
 // Multiplayer hook. Nothing sends snapshots yet, but this is the shape one takes:
@@ -388,6 +425,8 @@ async function boot() {
 
 boot().catch((err) => {
   console.error(err);
+  // Drawn into the buffer like everything else, then blitted once by hand:
+  // the loop that would normally do it never started.
   ctx.fillStyle = '#1a1a1e';
   ctx.fillRect(0, 0, VIEW.width, VIEW.height);
   ctx.fillStyle = '#e8e8ec';
@@ -395,4 +434,5 @@ boot().catch((err) => {
   ctx.textBaseline = 'top';
   ctx.fillText('Could not start: ' + err.message, 8, 8);
   ctx.fillText('The game needs a server — see cafe/README.md', 8, 20);
+  display.drawImage(buffer, 0, 0, canvas.width, canvas.height);
 });
