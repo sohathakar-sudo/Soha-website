@@ -34,6 +34,11 @@ with something concrete to protect. Not before.
 
 ## 2. You do not need a server
 
+> **Built:** `scripts/relay.mjs` is a local one — dependency-free, about eighty
+> lines of which are RFC 6455 by hand. It exists so the game's side could be
+> written and proved without signing up for anything. Swapping it for a hosted
+> pub/sub is a change to `net.js` and nothing else.
+
 A relay forwards messages. That is a hosted commodity — pub/sub with WebSockets,
 which several services give away at the scale a personal site operates at.
 Ably, Supabase Realtime, PartyKit, Deno Deploy all fit the shape.
@@ -206,11 +211,16 @@ this kind of before/after diffing — this is the same idea pointed at the wire.
 
 ## 7. Order of work
 
-1. **Two clients, one room, positions only.** No interpolation, no polish — just
-   prove two browsers can see each other. Everything after this is refinement.
+1. ~~**Two clients, one room, positions only.**~~ **Done.** `npm run relay`, then
+   open the café twice. Two browsers see each other, with names and faces, and
+   walking propagates. Send-on-change is in from the start, measured below.
 2. **Interpolation.** The difference between a demo and a place.
-3. **Send-on-change.** Do it early: it shapes the message format, and retrofitting
-   it means revisiting everything.
+3. ~~**Send-on-change.**~~ **Done with step 1**, because it shapes the message
+   format and retrofitting it would mean revisiting everything. Measured, out of
+   a real browser: **4.6 messages a second while walking, and one in twenty
+   seconds while sitting** — that one being the heartbeat. Walking needed a
+   ceiling as well as a floor; without `maxMovesPerSecond` it sent on nearly
+   every tick, at 15.6/s.
 4. **Presence and timeouts.** People close laptops; they do not press the mat.
 5. **Dormancy** (§3a). Needs presence working first, and is the step that makes
    the usual case — one person, alone — free.

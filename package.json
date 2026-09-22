@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "cafe": "node scripts/serve-cafe.mjs",
-    "check-room": "node scripts/check-room.mjs"
+    "check-room": "node scripts/check-room.mjs",
+    "relay": "node scripts/relay.mjs"
   },
   "repository": {
     "type": "git",

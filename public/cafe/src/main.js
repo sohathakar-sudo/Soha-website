@@ -1,4 +1,4 @@
-import { VIEW, PATHS, AUDIO } from './config.js';
+import { VIEW, PATHS, AUDIO, NET } from './config.js';
 import { createLoop } from './loop.js';
 import { attachInput, readInput, consumePress } from './input.js';
 import { createPlayer, applyMovement, applyInteraction, applyTime, isSeated, isWorking } from './player.js';
@@ -375,7 +375,6 @@ function update(dt) {
   // Reading this keyboard and sending it upstream are local concerns, so they
   // happen here rather than inside the loop that treats every player alike.
   const localInput = readInput();
-  net.sendInput(localInput, tick);
 
   for (const player of players.values()) {
     stepPlayer(player, inputFor(player, localInput), dt);
@@ -385,6 +384,8 @@ function update(dt) {
   rememberCoffees(me.coffees);
 
   if (leaving) { leave(); return; }
+
+  publishIfChanged(me, dt);
 
   // The room hums, the jukebox plays and the garden chirps from wherever they
   // are; this is the one place that tells them where the listener is standing.
@@ -432,6 +433,57 @@ function enter(choice, coffees) {
   loop.start();
 }
 
+// --- Talking to the room ---------------------------------------------------
+// Everything the wire cares about, and nothing it does not. `leaving` is a flag
+// read between ticks on this machine and has no business travelling.
+const WIRE = ['name', 'faceId', 'x', 'y', 'state', 'holdingCoffee', 'coffees', 'coffeeLeft'];
+
+let lastSent = null;
+let sinceSent = 0;
+
+function wireState(player) {
+  const out = {};
+  for (const key of WIRE) out[key] = player[key];
+  return out;
+}
+
+// Send when something actually changed, not on a clock. A café is people
+// sitting still: somebody seated and working sends nothing at all, for as long
+// as they sit there. That is most of why this is affordable — see
+// MULTIPLAYER.md §3.
+function publishIfChanged(player, dt) {
+  if (!net.isConnected()) return;
+
+  const now = wireState(player);
+  sinceSent += dt;
+
+  // Something actually happened — sat down, stood up, bought a coffee. These go
+  // straight out: they are rare, and they are the ones worth being prompt about.
+  let event = lastSent === null;
+  if (!event) {
+    for (const key of WIRE) {
+      if (key === 'x' || key === 'y') continue;
+      if (now[key] !== lastSent[key]) { event = true; break; }
+    }
+  }
+
+  // Walking is not an event, it is a stream. It gets a floor so that standing
+  // almost-still says nothing, and a ceiling so that walking does not say it
+  // sixty times a second.
+  const moved = lastSent ? Math.hypot(now.x - lastSent.x, now.y - lastSent.y) : 0;
+  const walking = !event && moved >= NET.moveEpsilon && sinceSent >= 1 / NET.maxMovesPerSecond;
+
+  // Silence is ambiguous — it could be somebody sitting very still or somebody
+  // whose laptop shut. An occasional word tells the difference.
+  const heartbeat = sinceSent >= NET.heartbeatSeconds;
+
+  if (!event && !walking && !heartbeat) return;
+
+  net.publish(now);
+  lastSent = now;
+  sinceSent = 0;
+}
+
 // What Enter would do from where the player is standing.
 function promptFor(player) {
   if (isSeated(player)) return '';
@@ -467,19 +519,22 @@ function render() {
 // upsert everyone the server knows about, drop everyone it no longer does.
 // Reconciling the local player's own predicted position is the piece phase two
 // will have to add.
-net.onSnapshot((snapshot) => {
-  const seen = new Set();
+// Somebody else's state arrived. They own it; we only copy it down.
+//
+// Nothing from the wire may touch the local player. In an authoritative build
+// this is where reconciliation would go, and assigning straight over the top
+// would be right. In a relay it would replace your own position with an echo of
+// where you were when the message left, and walking would feel like wading.
+net.onPeer((incoming) => {
+  if (!incoming || !incoming.id || incoming.id === LOCAL_ID) return;
 
-  for (const incoming of snapshot.players || []) {
-    seen.add(incoming.id);
-    const existing = players.get(incoming.id);
-    if (existing) Object.assign(existing, incoming);
-    else addPlayer(createPlayer(incoming));
-  }
+  const existing = players.get(incoming.id);
+  if (existing) Object.assign(existing, incoming);
+  else addPlayer(createPlayer(incoming));
+});
 
-  for (const id of [...players.keys()]) {
-    if (!seen.has(id)) removePlayer(id);
-  }
+net.onGone((id) => {
+  if (id && id !== LOCAL_ID) removePlayer(id);
 });
 
 const loop = createLoop({ update, render });
@@ -527,7 +582,7 @@ async function boot() {
 
   // A handle for the console and for the debug editor in phase 7. Read-only in
   // spirit: the game never reads anything back off it.
-  window.cafe = { players, renderStates, room, art, loop, editor, audio, ambience };
+  window.cafe = { players, renderStates, room, art, loop, editor, audio, ambience, net };
 }
 
 boot().catch((err) => {

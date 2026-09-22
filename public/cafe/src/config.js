@@ -182,6 +182,27 @@ export const AUDIO = {
   suspendWhenHidden: false,
 };
 
+// The wire. See MULTIPLAYER.md.
+export const NET = {
+  // Where the relay is. null means offline, which is the correct default: a
+  // café deployed to a real site must not go looking for a server nobody set
+  // up. Set it here, or drop a url into localStorage under 'cafe:relay'.
+  url: null,
+  // On localhost, assume `npm run relay` and connect without being asked.
+  devPort: 8001,
+
+  // A position change smaller than this is not news. Movement is continuous
+  // and the wire is not; without a floor, standing still would still trickle.
+  moveEpsilon: 1.5,
+  // Walking is continuous, so without a ceiling it would send on nearly every
+  // tick. Ten a second is more than enough to interpolate between and is the
+  // difference between affordable and not.
+  maxMovesPerSecond: 10,
+  // Even with nothing happening, say so occasionally — it is how the other end
+  // knows the difference between still and gone.
+  heartbeatSeconds: 15,
+};
+
 export const PATHS = {
   assets: './assets/',
   props: './assets/props/',
