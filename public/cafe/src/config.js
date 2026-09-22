@@ -96,25 +96,35 @@ export const AUDIO = {
     coffee: 0.40,
     doorOpen: 0.34,
     doorClose: 0.32,
-    scribble: 0.22,
-    type: 0.20,
-    sip: 0.26,
-    cutlery: 0.24,
+    // Scribbling and sipping are narrow, soft and short, and they play over the
+    // top of the jukebox rather than in a gap. Their peak level was already
+    // fine; what they lacked was presence against a continuous loop.
+    scribble: 0.34,
+    type: 0.26,
+    sip: 0.40,
+    cutlery: 0.30,
   },
 
-  // Working at a table. `settle` is the wait before the first one after sitting
-  // down: somebody who starts typing the instant they land reads as a machine
-  // rather than as a person getting their things out.
+  // Working at a table. `settle` is the wait before the FIRST one after sitting
+  // down — somebody who starts typing the instant they land reads as a machine
+  // rather than as a person getting their things out — and `every` is the gap
+  // between the ones after that.
+  //
+  // Both were originally much longer, which made them effectively invisible:
+  // settle plus the first interval came to nine seconds before you heard
+  // anything, and nobody sits still that long wondering whether a feature
+  // works. A sound nobody waits around for is a sound that does not exist.
   desk: {
     every: { min: 2.5, max: 6 },
-    settle: { min: 1.5, max: 3 },
+    settle: { min: 0.7, max: 1.6 },
   },
 
   // Drinking it. Only ever at a table, so standing up ends it and sitting back
-  // down with the same cup picks it up again.
+  // down with the same cup picks it up again. Same fix, more severe: the first
+  // sip used to be up to thirty-eight seconds away.
   sipping: {
-    every: { min: 12, max: 28 },
-    settle: { min: 4, max: 10 },
+    every: { min: 8, max: 18 },
+    settle: { min: 1.5, max: 3.5 },
     // How often a sip is instead the cup meeting its saucer.
     cutleryChance: 0.25,
   },
