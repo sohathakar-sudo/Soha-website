@@ -420,6 +420,7 @@ function update(dt) {
 
   if (leaving) { leave(); return; }
 
+  updateDormancy(dt);
   publishIfChanged(me, dt);
 
   // The room hums, the jukebox plays and the garden chirps from wherever they
@@ -481,6 +482,34 @@ const WIRE = ['name', 'faceId', 'x', 'y', 'state', 'holdingCoffee', 'coffees', '
 
 let lastSent = null;
 let sinceSent = 0;
+let aloneFor = 0;
+
+// Somebody is here after all. Start talking again, and say something at once so
+// they can see us — a relay that caches the last state would cover this, but a
+// plain pub/sub will not, and we should not depend on which one we are on.
+function wake() {
+  aloneFor = 0;
+  if (!net.isDormant()) return;
+  net.setDormant(false);
+  lastSent = null;
+}
+
+// An empty room is worth nothing to talk to. After long enough alone, stop
+// sending entirely — including the heartbeat, whose whole job is telling other
+// people you are still here. There is nobody to tell.
+//
+// The connection stays open, which is what makes this free rather than fiddly:
+// somebody arriving is a message, hearing it wakes us, and no polling or
+// reconnecting is needed. On the free tiers this is aimed at, connections are
+// not what you pay for.
+function updateDormancy(dt) {
+  if (!net.isConnected()) return;
+
+  if (players.size > 1) { wake(); return; }
+
+  aloneFor += dt;
+  if (aloneFor >= NET.dormantAfterSeconds) net.setDormant(true);
+}
 
 function wireState(player) {
   const out = {};
@@ -568,6 +597,9 @@ function render() {
 // where you were when the message left, and walking would feel like wading.
 net.onPeer((incoming) => {
   if (!incoming || !incoming.id || incoming.id === LOCAL_ID) return;
+
+  // Anybody speaking means the room is not empty, whatever we thought.
+  wake();
 
   const existing = players.get(incoming.id);
   if (!existing) {

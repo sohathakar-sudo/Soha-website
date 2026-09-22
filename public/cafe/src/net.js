@@ -26,6 +26,10 @@ let sweeper = null;
 let retryDelay = 0;
 let wantConnection = false;
 
+// Alone, and therefore silent. Still listening — that is what makes waking
+// instant and a poll unnecessary.
+let dormant = false;
+
 // A name for this tab on the wire. The local player is keyed 'local' inside the
 // game and always will be, so it needs something of its own out here.
 function makeId() {
@@ -164,8 +168,19 @@ if (typeof window !== 'undefined') {
 // Called only when the local player actually changed — see the diff in main.js.
 // A seated person sends nothing at all, which is most of why this is affordable.
 export function publish(player) {
+  if (dormant) return;
   if (!connected || socket.readyState !== WebSocket.OPEN) return;
   socket.send(JSON.stringify({ type: 'state', player: { ...player, id: myId } }));
+}
+
+// Whether to hold our tongue. The decision belongs to the game, which is the
+// only thing that knows whether the room is empty; this just obeys it.
+export function setDormant(value) {
+  dormant = Boolean(value);
+}
+
+export function isDormant() {
+  return dormant;
 }
 
 export function onPeer(handler) {

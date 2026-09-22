@@ -18,11 +18,16 @@ import { createHash } from 'node:crypto';
 const PORT = Number(process.env.PORT) || 8001;
 const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
-// A socket that has said nothing for this long is not a person any more. A
-// closed laptop or a dropped connection does not send anything — including a
-// close — so silence is the only evidence there is. Clients heartbeat every
-// 15s; a minute is four missed ones.
-const IDLE_SECONDS = 60;
+// Telling a dead socket from a quiet one.
+//
+// These have to be protocol-level pings rather than application messages,
+// because a café with nobody else in it deliberately stops sending anything at
+// all (see MULTIPLAYER.md §3a). Counting only chat would show such a client the
+// door every minute, and it would reconnect, and go quiet, and be shown the
+// door again — costing far more than the silence saved. A ping costs nothing on
+// anybody's bill and the browser answers it without being asked.
+const PING_AFTER_SECONDS = 25;
+const IDLE_SECONDS = 70;
 const SWEEP_SECONDS = 10;
 
 const peers = new Set();
@@ -73,6 +78,10 @@ function drain(peer, onText, onClose) {
     if (maskKey) for (let i = 0; i < payload.length; i++) payload[i] ^= maskKey[i & 3];
     peer.buffer = buf.subarray(offset + len);
 
+    // Anything at all is proof of life, a pong included. That is the point of
+    // pinging: it keeps a deliberately silent client accounted for.
+    peer.heard = Date.now();
+
     if (opcode === 0x8) { onClose(); return; }
     if (opcode === 0x9) peer.socket.write(Buffer.concat([Buffer.from([0x8a, payload.length]), payload]));
     if (opcode === 0x1) onText(payload.toString('utf8'));
@@ -115,8 +124,6 @@ server.on('upgrade', (req, socket) => {
   socket.on('data', (chunk) => {
     peer.buffer = Buffer.concat([peer.buffer, chunk]);
     drain(peer, (text) => {
-      peer.heard = Date.now();
-
       let message;
       try { message = JSON.parse(text); } catch { return; }
       if (!message || typeof message !== 'object') return;
@@ -146,14 +153,17 @@ server.on('upgrade', (req, socket) => {
   socket.on('close', () => drop(peer));
 });
 
-// Anyone who has gone quiet gets shown out, so the room does not fill up with
-// people who are not there.
+// Ask the quiet ones whether they are still there, and show out only the ones
+// that do not answer.
 setInterval(() => {
-  const cutoff = Date.now() - IDLE_SECONDS * 1000;
+  const now = Date.now();
   for (const peer of [...peers]) {
-    if (peer.heard < cutoff) {
-      console.log(`  quiet ${peer.id ?? '(unannounced)'} for ${IDLE_SECONDS}s`);
+    const quiet = (now - peer.heard) / 1000;
+    if (quiet > IDLE_SECONDS) {
+      console.log(`  silent ${peer.id ?? '(unannounced)'} for ${Math.round(quiet)}s`);
       drop(peer);
+    } else if (quiet > PING_AFTER_SECONDS && !peer.socket.destroyed) {
+      peer.socket.write(Buffer.from([0x89, 0]));   // ping, no payload
     }
   }
 }, SWEEP_SECONDS * 1000).unref();

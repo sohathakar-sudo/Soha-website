@@ -202,6 +202,17 @@ export const NET = {
   // knows the difference between still and gone.
   heartbeatSeconds: 15,
 
+  // Alone in an empty room, say nothing at all.
+  //
+  // The heartbeat exists so other people know you have not vanished. With
+  // nobody else here there is nobody to tell, so it is pure cost — and being
+  // alone is the state this café will spend most of its life in.
+  //
+  // Waking needs no poll and no reconnection, because the connection stays
+  // open: somebody else arriving is a message, and hearing it is what wakes us.
+  // Connections are free on the tiers this is aimed at. Messages are not.
+  dormantAfterSeconds: 300,
+
   // Who is still here.
   //
   // A clean departure says so. Everything else — a shut laptop, dropped wifi, a

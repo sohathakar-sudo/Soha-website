@@ -102,25 +102,35 @@ and left alone it is the single largest thing on the bill.
 
 So: **after five minutes alone, go dormant.**
 
-- Stop publishing. Nobody is listening
-- Unsubscribe from the position channel
-- Keep one cheap presence check — once a minute is about 43k messages a month,
-  which is noise
-- On seeing somebody arrive, wake: resubscribe, publish once so they see you
-  too, carry on
+> **Built, and simpler than this sketch expected.** Measured: **zero messages in
+> twenty seconds** while dormant, against one or two heartbeats before. Waking
+> is instant, and both halves see each other immediately.
 
-Five minutes rather than immediately, because somebody is most likely to arrive
-shortly after somebody else has, and a connection that drops and reopens every
-few seconds is both worse and more expensive than one left open.
+- Stop publishing — including the heartbeat, whose entire job is telling other
+  people you are still here. Alone, there is nobody to tell
+- **Stay connected and stay listening.** The sketch had us unsubscribing and
+  polling once a minute; neither is needed. Connections are not what these tiers
+  charge for — messages are. Somebody arriving *is* a message, and hearing it is
+  what wakes us
+- On waking, publish once straight away, so they can see us. A relay that caches
+  the last state covers this, but a plain pub/sub will not, and depending on
+  which one we are on would be a trap
 
-**What it costs you:** waking is not instant. Alone and dormant, you might not
-see someone for up to a poll interval after they walk in. For a café that is
-nothing — people arrive and then stay for an hour. It would be unacceptable in
-a game where the first second mattered, and this is not one.
+**What it costs you:** nothing, in the end. The sketch expected to trade away
+instant waking for silence and it turned out not to be a trade at all — staying
+subscribed costs nothing and wakes on the first word anybody says.
 
 **What it does not change:** anything visible. Dormant still means you are in
 the café, walking around, with the jukebox playing. The room does not know and
-does not care. Only the socket is asleep.
+does not care. Only the talking has stopped.
+
+**One thing it forced, which is worth knowing.** A client that deliberately goes
+silent looks exactly like a dead one, so the relay's idle timeout from step 4
+would have shown it the door every minute — reconnect, go quiet, be shown out
+again, costing far more than the silence saved. Liveness now goes over
+protocol-level **pings** rather than application messages. Browsers answer them
+without being asked, they cost nothing on anybody's bill, and a hosted pub/sub
+does its own keepalive for the same reason.
 
 This pairs with §3 rather than repeating it. Send-on-change makes a *present*
 person cheap; going dormant makes an *absent* crowd free. Between them the
@@ -242,8 +252,10 @@ this kind of before/after diffing — this is the same idea pointed at the wire.
    heartbeat. Reconnection came with it, since a dropped socket that never
    returns is indistinguishable from being alone: the relay was killed
    mid-session, both rooms emptied, and both rejoined when it came back.
-5. **Dormancy** (§3a). Needs presence working first, and is the step that makes
-   the usual case — one person, alone — free.
+5. ~~**Dormancy** (§3a).~~ **Done.** Zero messages while alone, measured over
+   twenty seconds. It needed protocol pings in the relay first: a deliberately
+   silent client is indistinguishable from a dead one, and step 4's timeout
+   would have evicted it on a loop.
 6. **The empty room.** See §8.
 
 ---
