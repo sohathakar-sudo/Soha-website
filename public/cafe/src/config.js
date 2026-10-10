@@ -190,7 +190,7 @@ export const AUDIO = {
 export const NET = {
   // The relay's WebSocket address, e.g. 'wss://cafe-relay.you.workers.dev'.
   // Leave empty for solo. See cafe-server/README.md to deploy and fill this in.
-  url: '',
+  url: 'wss://cafe-relay.cafesoha.workers.dev',
 
   // How often, at most, the local player's state is sent. The send is also
   // skipped when nothing changed, so a seated café sends almost nothing — this
