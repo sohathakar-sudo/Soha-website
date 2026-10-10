@@ -1,0 +1,14 @@
+{
+  "name": "cafe-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker + Durable Object relay for the café's multiplayer.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.42.0"
+  }
+}

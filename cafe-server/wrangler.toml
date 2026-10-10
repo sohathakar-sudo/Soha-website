@@ -1,0 +1,19 @@
+# Cloudflare Worker + Durable Object config for the café's multiplayer relay.
+#
+# Deploy with:  npx wrangler deploy   (after `npx wrangler login`)
+# Develop with: npx wrangler dev      (runs the Durable Object locally)
+
+name = "cafe-relay"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# The one shared room lives in this Durable Object class.
+[[durable_objects.bindings]]
+name = "CAFE_ROOM"
+class_name = "CafeRoom"
+
+# SQLite-backed Durable Objects are the class available on the Workers free
+# plan, so the room runs at no cost within the free tier's daily limits.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CafeRoom"]
