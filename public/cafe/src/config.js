@@ -182,6 +182,43 @@ export const AUDIO = {
   suspendWhenHidden: false,
 };
 
+// --- Multiplayer -----------------------------------------------------------
+// The game is single-player until `url` points at a deployed relay (see
+// cafe-server/). An empty url means solo: net.js becomes a set of no-ops and the
+// café behaves exactly as it does with no server at all, so the folder stays
+// droppable on any static host.
+export const NET = {
+  // The relay's WebSocket address, e.g. 'wss://cafe-relay.you.workers.dev'.
+  // Leave empty for solo. See cafe-server/README.md to deploy and fill this in.
+  url: '',
+
+  // How often, at most, the local player's state is sent. The send is also
+  // skipped when nothing changed, so a seated café sends almost nothing — this
+  // is the cap while walking, not a steady drumbeat. Kept well under the 60Hz
+  // tick on purpose: positions are interpolated at the other end.
+  sendHz: 10,
+
+  // Must match MAX_PLAYERS in the relay (= the room's seat count). Used only for
+  // a friendly notice; the server is what actually enforces it.
+  maxPlayers: 15,
+
+  // How hard a remote player is pulled toward their latest reported position
+  // each tick, 0..1. Higher snaps sooner and truer; lower glides more but lags.
+  // The value is chosen to close most of a ~100ms gap between updates smoothly,
+  // which also keeps the bob and footsteps — both driven by how far they moved
+  // this tick — reading as walking rather than teleporting.
+  remoteLerp: 0.25,
+
+  // A quiet keepalive sent only when nothing else has gone out for this long, so
+  // an idle connection is not dropped by an intermediary. Cheap: a couple of
+  // messages a minute at most.
+  pingSeconds: 45,
+
+  // Reconnect backoff after an unexpected drop: start here, double each try,
+  // never wait longer than the cap.
+  reconnect: { startMs: 1000, maxMs: 15000 },
+};
+
 export const PATHS = {
   assets: './assets/',
   props: './assets/props/',

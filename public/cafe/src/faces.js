@@ -72,6 +72,12 @@ export function createRenderState() {
     cupAt: null,
     lastX: null,
     lastY: null,
+    // The last position a remote player reported, eased toward each tick so they
+    // glide between updates rather than teleporting. null for the local player
+    // and until a remote's first update lands. Interpolation state, not room
+    // state: it never travels and is not part of a Player.
+    netX: null,
+    netY: null,
   };
 }
 

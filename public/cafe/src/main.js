@@ -1,4 +1,4 @@
-import { VIEW, PATHS, AUDIO } from './config.js';
+import { VIEW, PATHS, AUDIO, NET } from './config.js';
 import { createLoop } from './loop.js';
 import { attachInput, readInput, consumePress } from './input.js';
 import { createPlayer, applyMovement, applyInteraction, applyTime, isSeated, isWorking } from './player.js';
@@ -86,6 +86,12 @@ const players = new Map();
 // the room and never travel over the wire.
 const renderStates = new Map();
 
+// The latest state each remote player reported over the wire, keyed by their id.
+// Applied to the player during its tick (not the moment it arrives) so the sound
+// system sees transitions and a remote's sit, stand and coffee are heard just
+// like a local one's. Empty in solo play.
+const remoteWire = new Map();
+
 // Faces are loaded once at boot and indexed by faceId, never per player.
 
 function removePlayer(id) {
@@ -98,6 +104,60 @@ function addPlayer(player) {
   renderStates.set(player.id, createRenderState());
   return player;
 }
+
+// --- Remote players --------------------------------------------------------
+// Everyone who is not the local player arrives, updates and leaves through here.
+// They are ordinary entries in the same `players` map — only their input differs
+// (it comes off the wire, not the keyboard) and their position is eased rather
+// than simulated.
+function addRemote(wire) {
+  remoteWire.set(wire.id, wire);
+  if (players.has(wire.id)) return;
+
+  const player = createPlayer(wire);
+  // Start them in the state they are already in, so arriving to find someone
+  // seated doesn't replay a sit the moment they are drawn.
+  player.state = wire.state === 'sitting' ? 'sitting' : 'walking';
+  player.holdingCoffee = !!wire.holdingCoffee;
+  player.coffees = wire.coffees || 0;
+  addPlayer(player);
+
+  // Prime the render state at their reported spot: no glide in from the origin,
+  // and no phantom stride on the first frame.
+  const rs = renderStates.get(wire.id);
+  rs.netX = wire.x;
+  rs.netY = wire.y;
+  rs.lastX = wire.x;
+  rs.lastY = wire.y;
+}
+
+function dropRemote(id) {
+  if (id === LOCAL_ID) return;
+  removePlayer(id);
+  remoteWire.delete(id);
+}
+
+function dropAllRemotes() {
+  for (const id of [...players.keys()]) {
+    if (id !== LOCAL_ID) dropRemote(id);
+  }
+}
+
+// How the wire's messages move the players map. main.js owns the map; net.js
+// only decodes. Registered once at load so a welcome is never missed.
+net.on({
+  welcome: ({ players: roster }) => {
+    for (const wire of roster || []) addRemote(wire);
+  },
+  join: (wire) => addRemote(wire),
+  state: (wire) => {
+    if (wire.id === net.getMyId()) return; // never animate our own echo
+    if (players.has(wire.id)) remoteWire.set(wire.id, wire);
+    else addRemote(wire);
+  },
+  leave: (id) => dropRemote(id),
+  full: () => console.warn(`The café is full (max ${NET.maxPlayers}). Others won't see you yet.`),
+});
 
 const ZERO_INPUT = { left: false, right: false, up: false, down: false, interact: false };
 
@@ -334,26 +394,32 @@ function soundChanges(player, before, renderState, footfallsBefore, dt) {
   );
 }
 
-// One player, one tick. Identical for everyone in the map: whether the input
-// came from this keyboard or from a snapshot makes no difference here.
+// One player, one tick. The local player is simulated from the keyboard; a
+// remote one is moved toward the position it last reported. Everything after
+// that — bob, facing, and the sound its state change makes — is identical for
+// both, which is the whole reason remote footsteps and chairs cost no new code.
 function stepPlayer(player, input, dt) {
   const before = { state: player.state, coffees: player.coffees, music: player.music };
   const renderState = renderStates.get(player.id);
   const footfallsBefore = renderState.footfalls;
 
-  // Time passes before anything else, so a coffee bought this tick gets its
-  // full two minutes rather than being a tick short of them.
-  Object.assign(player, applyTime(player, dt));
+  if (player.id === LOCAL_ID) {
+    // Time passes before anything else, so a coffee bought this tick gets its
+    // full two minutes rather than being a tick short of them.
+    Object.assign(player, applyTime(player, dt));
 
-  // Interactions next: they can stand a seated player up in time for the
-  // same tick's movement.
-  Object.assign(player, applyInteraction(player, input, room, takenSeats(player)));
+    // Interactions next: they can stand a seated player up in time for the
+    // same tick's movement.
+    Object.assign(player, applyInteraction(player, input, room, takenSeats(player)));
 
-  if (!isSeated(player)) {
-    const moved = applyMovement(player, input, dt, room);
-    player.x = moved.x;
-    player.y = moved.y;
-    player.state = 'walking';
+    if (!isSeated(player)) {
+      const moved = applyMovement(player, input, dt, room);
+      player.x = moved.x;
+      player.y = moved.y;
+      player.state = 'walking';
+    }
+  } else {
+    stepRemote(player, renderState);
   }
 
   // Render state last, so it reacts to where the player actually ended up.
@@ -361,6 +427,35 @@ function stepPlayer(player, input, dt) {
   faceTheTable(player, renderState);
 
   soundChanges(player, before, renderState, footfallsBefore, dt);
+}
+
+// A remote player is not simulated — it is shown. The state it reported is
+// applied here, inside the tick rather than the instant it arrived, so the
+// `before` snapshot above still holds the old state and soundChanges hears the
+// transition. The position is eased toward the report: advanceBob reads the
+// per-tick distance, so a smooth glide also yields a true bob and footstep.
+function stepRemote(player, renderState) {
+  const wire = remoteWire.get(player.id);
+  if (wire) {
+    player.state = wire.state === 'sitting' ? 'sitting' : 'walking';
+    player.faceId = wire.faceId;
+    player.name = wire.name;
+    player.holdingCoffee = !!wire.holdingCoffee;
+    player.coffees = wire.coffees || 0;
+    renderState.netX = wire.x;
+    renderState.netY = wire.y;
+  }
+
+  if (renderState.netX != null) {
+    player.x += (renderState.netX - player.x) * NET.remoteLerp;
+    player.y += (renderState.netY - player.y) * NET.remoteLerp;
+    // Settle exactly onto the target once within a pixel, so a standing player
+    // is perfectly still rather than forever creeping the last fraction.
+    if (Math.abs(renderState.netX - player.x) < 0.1 && Math.abs(renderState.netY - player.y) < 0.1) {
+      player.x = renderState.netX;
+      player.y = renderState.netY;
+    }
+  }
 }
 
 // --- Loop ------------------------------------------------------------------
@@ -372,10 +467,9 @@ function update(dt) {
 
   if (consumePress('Backquote') && editor) editor.toggle();
 
-  // Reading this keyboard and sending it upstream are local concerns, so they
-  // happen here rather than inside the loop that treats every player alike.
+  // Reading this keyboard is a local concern, so it happens here rather than
+  // inside the loop that treats every player alike.
   const localInput = readInput();
-  net.sendInput(localInput, tick);
 
   for (const player of players.values()) {
     stepPlayer(player, inputFor(player, localInput), dt);
@@ -383,6 +477,11 @@ function update(dt) {
 
   const me = players.get(LOCAL_ID);
   rememberCoffees(me.coffees);
+
+  // Send where we ended up, not what was pressed: this is a relay, so the room
+  // carries state rather than input. Throttled and skipped when nothing changed,
+  // both inside net.sendState, so a still player sends nothing.
+  net.sendState(me);
 
   if (leaving) { leave(); return; }
 
@@ -401,6 +500,11 @@ let leaving = false;
 async function leave() {
   loop.stop();
   if (editor && editor.active) editor.toggle();
+
+  // Tell the room we've stepped out, and clear everyone else: when we walk back
+  // in, the relay's welcome repopulates them from scratch.
+  net.leaveRoom();
+  dropAllRemotes();
 
   const me = players.get(LOCAL_ID);
   removePlayer(LOCAL_ID);
@@ -426,6 +530,10 @@ function enter(choice, coffees) {
   me.coffees = coffees;
   savedCoffees = coffees;
   addPlayer(me);
+
+  // Announce ourselves to the room, with where we are standing so the others
+  // see us at the door rather than briefly at the origin. No-op in solo play.
+  net.identify({ name: me.name, faceId: me.faceId, x: me.x, y: me.y, state: me.state });
 
   leaving = false;
   ambience.start();
@@ -463,25 +571,6 @@ function render() {
   display.drawImage(buffer, 0, 0, canvas.width, canvas.height);
 }
 
-// Multiplayer hook. Nothing sends snapshots yet, but this is the shape one takes:
-// upsert everyone the server knows about, drop everyone it no longer does.
-// Reconciling the local player's own predicted position is the piece phase two
-// will have to add.
-net.onSnapshot((snapshot) => {
-  const seen = new Set();
-
-  for (const incoming of snapshot.players || []) {
-    seen.add(incoming.id);
-    const existing = players.get(incoming.id);
-    if (existing) Object.assign(existing, incoming);
-    else addPlayer(createPlayer(incoming));
-  }
-
-  for (const id of [...players.keys()]) {
-    if (!seen.has(id)) removePlayer(id);
-  }
-});
-
 const loop = createLoop({ update, render });
 
 // --- Boot ------------------------------------------------------------------
@@ -514,7 +603,10 @@ async function boot() {
   art.fg = fg;
 
   attachInput();
-  net.connect();
+  // Open the relay if one is configured. Resolves either way — a café that can't
+  // reach its relay still opens as a quiet solo room. net.on(...) above is
+  // already listening, so a welcome on connect is handled.
+  net.connect(NET.url);
 
   // The title screen blocks here until the player picks a name and a face.
   const choice = await showTitle();
