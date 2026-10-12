@@ -1,4 +1,4 @@
-import { VIEW, PATHS, AUDIO, NET } from './config.js';
+import { VIEW, PATHS, AUDIO, NET, ROSTER } from './config.js';
 import { createLoop } from './loop.js';
 import { attachInput, readInput, consumePress } from './input.js';
 import { createPlayer, applyMovement, applyInteraction, applyTime, isSeated, isWorking } from './player.js';
@@ -6,6 +6,7 @@ import { loadFaces, loadProps, loadImage, createRenderState, advanceBob } from '
 import { drawBackground, drawForeground, drawPlayers } from './render.js';
 import { loadRoom } from './room.js';
 import { showTitle, drawHud } from './ui.js';
+import { createRoster } from './roster.js';
 import { createDebugEditor } from './debug.js';
 import * as audio from './audio.js';
 import { gainFor } from './audio.js';
@@ -461,6 +462,12 @@ function stepRemote(player, renderState) {
 // --- Loop ------------------------------------------------------------------
 let tick = 0;
 
+// The left-hand roster, created at boot. Reconciled on a lazy cadence rather
+// than every frame — it is a DOM list of who is here, and membership changes
+// far slower than the room is drawn.
+let roster = null;
+let rosterAccum = 0;
+
 function update(dt) {
   if (leaving) return;
   tick++;
@@ -484,6 +491,14 @@ function update(dt) {
   net.sendState(me);
 
   if (leaving) { leave(); return; }
+
+  // Keep the left-hand roster in step with who is actually in the room, on its
+  // own lazy cadence so it is a few DOM writes a second rather than sixty.
+  rosterAccum += dt;
+  if (roster && rosterAccum >= ROSTER.refreshSeconds) {
+    rosterAccum = 0;
+    roster.update();
+  }
 
   // The room hums, the jukebox plays and the garden chirps from wherever they
   // are; this is the one place that tells them where the listener is standing.
@@ -534,6 +549,10 @@ function enter(choice, coffees) {
   // Announce ourselves to the room, with where we are standing so the others
   // see us at the door rather than briefly at the origin. No-op in solo play.
   net.identify({ name: me.name, faceId: me.faceId, x: me.x, y: me.y, state: me.state });
+
+  // Show yourself in the roster the instant you walk in, rather than on the
+  // next lazy refresh.
+  if (roster) roster.update();
 
   leaving = false;
   ambience.start();
@@ -603,6 +622,12 @@ async function boot() {
   art.fg = fg;
 
   attachInput();
+
+  // The left-hand roster reads straight off the players map, so it works the
+  // same solo or full. Built before the title screen resolves so the first
+  // enter() can populate it at once.
+  roster = createRoster({ players, localId: LOCAL_ID });
+
   // Open the relay if one is configured. Resolves either way — a café that can't
   // reach its relay still opens as a quiet solo room. net.on(...) above is
   // already listening, so a welcome on connect is handled.

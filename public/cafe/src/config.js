@@ -219,6 +219,14 @@ export const NET = {
   reconnect: { startMs: 1000, maxMs: 15000 },
 };
 
+// The roster tab on the left: who is in the café right now. How often its list
+// is reconciled against the players map. The list only changes when someone
+// joins, leaves, or swaps face or name, so this can be lazy — it is a DOM
+// refresh, not a frame the room is drawn into.
+export const ROSTER = {
+  refreshSeconds: 0.25,
+};
+
 export const PATHS = {
   assets: './assets/',
   props: './assets/props/',

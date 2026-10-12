@@ -119,6 +119,148 @@
   }
   #debug-copy:hover { background: #3b3b45; }
 
+  /* --- roster: who's in the café --------------------------------------- */
+  /* A tab on the left edge. Below the title and the mobile notice, above the
+     room, so the title screen covers it and a phone never shows it. The whole
+     thing slides left to tuck the body away, leaving only the café tab. */
+  #roster {
+    position: fixed;
+    top: 16px;
+    left: 0;
+    z-index: 3;
+    display: flex;
+    align-items: flex-start;
+    transition: transform .28s ease;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  #roster[data-open="false"] { transform: translateX(-210px); }
+
+  #roster-body {
+    width: 210px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    box-sizing: border-box;
+    /* The café's own cream, the colour the heads are drawn on, so they read
+       here exactly as they do in the room and on the title screen. */
+    background: rgba(240, 230, 214, .96);
+    color: #33302c;
+    border: 1px solid #d8c9b2;
+    border-left: none;
+    border-radius: 0 10px 10px 0;
+    box-shadow: 3px 3px 0 rgba(51, 48, 44, .18);
+  }
+  #roster-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #6a6258;
+    border-bottom: 1px solid #e0d2bc;
+    position: sticky;
+    top: 0;
+    background: rgba(240, 230, 214, .96);
+  }
+  #roster-count {
+    min-width: 18px;
+    padding: 1px 6px;
+    text-align: center;
+    color: #f0e6d6;
+    background: #c2493d;
+    border-radius: 9px;
+    font-size: 11px;
+  }
+  #roster-list {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0 6px;
+  }
+  #roster-list li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 12px 2px 6px;
+  }
+  .roster-head {
+    position: relative;
+    flex: none;
+    width: 40px;
+    height: 40px;
+  }
+  .roster-head img {
+    position: absolute;
+    left: 50%;
+    bottom: 7px;
+    width: 34px;
+    height: 34px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    transform: translateX(-50%);
+    animation: roster-float var(--float-dur, 2.6s) ease-in-out infinite;
+    animation-delay: var(--float-delay, 0s);
+  }
+  /* The warm, low-alpha shadow from the room, tightening and fading as the
+     head rises — the same tell that puts a face in the room rather than on
+     the glass. */
+  .roster-head::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    width: 20px;
+    height: 5px;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(60, 44, 32, .5), rgba(60, 44, 32, 0) 70%);
+    animation: roster-shadow var(--float-dur, 2.6s) ease-in-out infinite;
+    animation-delay: var(--float-delay, 0s);
+  }
+  @keyframes roster-float {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50%      { transform: translateX(-50%) translateY(-3px); }
+  }
+  @keyframes roster-shadow {
+    0%, 100% { opacity: .5; width: 20px; }
+    50%      { opacity: .3; width: 16px; }
+  }
+  .roster-name {
+    font-size: 13px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #roster-empty {
+    margin: 0;
+    padding: 2px 12px 10px;
+    font-size: 12px;
+    color: #8a8176;
+  }
+  #roster[data-empty="false"] #roster-empty { display: none; }
+
+  #roster-tab {
+    align-self: flex-start;
+    margin-top: 4px;
+    flex: none;
+    width: 26px;
+    height: 40px;
+    font-size: 17px;
+    line-height: 1;
+    cursor: pointer;
+    color: #f0e6d6;
+    background: #c2493d;
+    border: none;
+    border-radius: 0 7px 7px 0;
+    box-shadow: 2px 2px 0 rgba(51, 48, 44, .22);
+  }
+  #roster-tab:hover { background: #d4564a; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .roster-head img, .roster-head::after { animation: none; }
+  }
+
   #mobile-notice {
     display: none;
     position: fixed;
@@ -160,11 +302,21 @@
   #debug-copy:hover { background: #3b3b45; }
 
   #mobile-notice { display: flex; }
+  #roster { display: none; }
   }
 </style>
 </head>
 <body>
   <div id="stage"><canvas id="game"></canvas></div>
+
+  <div id="roster" data-open="true" data-empty="true">
+    <div id="roster-body">
+      <div id="roster-header"><span>In the café</span><span id="roster-count">0</span></div>
+      <ul id="roster-list"></ul>
+      <p id="roster-empty">Nobody here yet.</p>
+    </div>
+    <button id="roster-tab" type="button" aria-label="Who's in the café" aria-expanded="true">☕</button>
+  </div>
 
   <div id="title" hidden>
     <h1>The Café</h1>
